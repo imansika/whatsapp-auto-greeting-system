@@ -1,0 +1,456 @@
+import { useCallback, useEffect, useState } from "react";
+import axios from "axios";
+import { createTheme, ThemeProvider } from "@mui/material";
+import {
+  Dashboard as DashboardIcon,
+  Message as MessageIcon,
+  Chat as ChatIcon,
+  QrCode as QrCodeIcon,
+  ListAlt as LogsIcon,
+  Settings as SettingsIcon,
+  Logout as LogoutIcon,
+  Refresh as RefreshIcon,
+  Cancel as CancelIcon,
+  CheckCircle as CheckCircleIcon,
+  PhoneAndroid as PhoneIcon,
+  Info as InfoIcon,
+  LinkOff as LinkOffIcon,
+} from "@mui/icons-material";
+
+// ── MUI theme ──────────────────────────────────────────────────────────────
+const theme = createTheme({
+  palette: {
+    primary: { main: "#25D366", contrastText: "#fff" },
+  },
+});
+
+// ── Nav items ──────────────────────────────────────────────────────────────
+const navItems = [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    icon: <DashboardIcon fontSize="small" />,
+  },
+  { id: "messages", label: "Messages", icon: <MessageIcon fontSize="small" /> },
+  {
+    id: "greeting",
+    label: "Greeting Messages",
+    icon: <ChatIcon fontSize="small" />,
+  },
+  {
+    id: "qr",
+    label: "WhatsApp QR Code",
+    icon: <QrCodeIcon fontSize="small" />,
+  },
+  { id: "logs", label: "Message Logs", icon: <LogsIcon fontSize="small" /> },
+  {
+    id: "settings",
+    label: "Settings",
+    icon: <SettingsIcon fontSize="small" />,
+  },
+];
+
+// ── Sidebar ────────────────────────────────────────────────────────────────
+const Sidebar = ({ active, setActive }) => (
+  <aside className="flex flex-col w-96 min-h-screen bg-white border-r border-gray-100 shadow-sm flex-shrink-0">
+    {/* Brand */}
+    <div className="flex items-center gap-2 px-4 py-4 bg-[#25D366]">
+      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+        <ChatIcon style={{ color: "#fff", fontSize: 22 }} />
+      </div>
+      <span className="text-white font-bold text-lg tracking-wide">
+        WhatsApp Greeting System
+      </span>
+    </div>
+
+    {/* User */}
+    <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
+      <div className="w-10 h-10 rounded-full bg-[#25D366]/15 flex items-center justify-center flex-shrink-0">
+        <span className="text-[#25D366] font-bold text-base">JD</span>
+      </div>
+      <div className="min-w-0">
+        <p className="text-base font-semibold text-gray-800 truncate">
+          John Doe
+        </p>
+        <p className="text-sm text-gray-400 truncate">john@example.com</p>
+      </div>
+    </div>
+
+    {/* Nav */}
+    <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
+      {navItems.map((item) => (
+        <button
+          key={item.id}
+          onClick={() => setActive(item.id)}
+          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-base font-medium transition-all w-full text-left
+            ${
+              active === item.id
+                ? "bg-[#25D366] text-white shadow-md shadow-[#25D366]/25"
+                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+            }`}
+        >
+          <span className={active === item.id ? "text-white" : "text-gray-400"}>
+            {item.icon}
+          </span>
+          {item.label}
+        </button>
+      ))}
+    </nav>
+
+    {/* Logout */}
+    <div className="px-3 pb-5">
+      <button className="flex items-center gap-3 px-3 py-3 rounded-xl text-base font-medium text-red-500 hover:bg-red-50 transition-all w-full">
+        <LogoutIcon fontSize="small" />
+        Logout
+      </button>
+    </div>
+  </aside>
+);
+
+// ── Top bar ────────────────────────────────────────────────────────────────
+const TopBar = ({ connected, isConnecting }) => {
+  const label = connected
+    ? "Connected"
+    : isConnecting
+      ? "Connecting…"
+      : "Disconnected";
+  const dotClass = connected
+    ? "bg-[#25D366] animate-pulse"
+    : isConnecting
+      ? "bg-yellow-400 animate-pulse"
+      : "bg-gray-400";
+  const textClass = connected
+    ? "text-[#25D366]"
+    : isConnecting
+      ? "text-yellow-500"
+      : "text-gray-400";
+
+  return (
+    <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-8 flex-shrink-0 shadow-sm">
+      <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
+        WhatsApp Auto-Reply Dashboard
+      </h1>
+      <div
+        className={`flex items-center gap-2 text-base font-semibold ${textClass}`}
+      >
+        <span className={`w-2 h-2 rounded-full ${dotClass}`} />
+        {label}
+      </div>
+    </header>
+  );
+};
+
+const WHATSAPP_API_URL = "http://localhost:3000/api/whatsapp/status";
+const WHATSAPP_QR_BASE_URL = "http://localhost:3000";
+
+// ── QR Page ────────────────────────────────────────────────────────────────
+const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
+  const [qrImage, setQrImage] = useState(null);
+  const [qrLoading, setQrLoading] = useState(true);
+  const [qrError, setQrError] = useState("");
+  // const [qrUrl, setQrUrl] = useState(null);
+  const [whatsappNumber, setWhatsappNumber] = useState(null);
+  const [lastConnected, setLastConnected] = useState(null);
+
+  const fetchWhatsAppStatus = useCallback(async () => {
+    try {
+      const response = await axios.get(WHATSAPP_API_URL, {
+        params: { t: Date.now() },
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+      });
+
+      const isConnectedNow = Boolean(response.data.connected);
+      const hasQrNow = Boolean(response.data.hasQr);
+      const nextQrImage = response.data.qrImage
+        || (response.data.qrUrl
+          ? `${WHATSAPP_QR_BASE_URL}${response.data.qrUrl}`
+          : null);
+
+      setConnected(isConnectedNow);
+      setIsConnecting(Boolean(response.data.isConnecting));
+      if (isConnectedNow) {
+        setQrImage(null);
+      } else if (hasQrNow && nextQrImage) {
+        setQrImage(nextQrImage);
+      } else {
+        setQrImage(null);
+      }
+      setWhatsappNumber(response.data.whatsappNumber || null);
+      setLastConnected(response.data.lastConnected || null);
+      setQrError("");
+    } catch (error) {
+      setConnected(false);
+      setIsConnecting(false);
+      setQrImage(null);
+      setQrError(
+        "Unable to fetch live QR code. Please ensure backend is running.",
+      );
+    } finally {
+      setQrLoading(false);
+    }
+  }, [setConnected, setIsConnecting]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetch = async () => {
+      if (!mounted) return;
+      await fetchWhatsAppStatus();
+    };
+
+    fetch();
+    const interval = setInterval(fetch, 2000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [fetchWhatsAppStatus]);
+
+  const steps = [
+    {
+      num: 1,
+      icon: <PhoneIcon fontSize="small" />,
+      title: "Open WhatsApp on your phone",
+      desc: "Launch the WhatsApp application on your mobile device",
+    },
+    {
+      num: 2,
+      icon: <SettingsIcon fontSize="small" />,
+      title: "Go to Settings",
+      desc: 'Tap on the three dots (Android) or Settings (iOS) and select "Linked Devices"',
+    },
+    {
+      num: 3,
+      icon: <LinkOffIcon fontSize="small" />,
+      title: "Link a Device",
+      desc: 'Tap on "Link a Device" and allow camera access if prompted',
+    },
+    {
+      num: 4,
+      icon: <QrCodeIcon fontSize="small" />,
+      title: "Scan QR Code",
+      desc: "Point your phone at the QR code shown on this screen",
+    },
+  ];
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Heading */}
+      <div>
+        <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+          WhatsApp Connection
+        </h2>
+        <p className="text-base text-gray-500 mt-0.5">
+          Scan the QR code to link your WhatsApp account
+        </p>
+      </div>
+
+      {/* Status banner */}
+      <div
+        className={`flex items-center gap-3 px-5 py-4 rounded-xl border ${
+          connected
+            ? "bg-[#f0fdf4] border-[#bbf7d0]"
+            : isConnecting
+              ? "bg-yellow-50 border-yellow-200"
+              : "bg-gray-50 border-gray-200"
+        }`}
+      >
+        {connected ? (
+          <CheckCircleIcon style={{ color: "#25D366", fontSize: 24 }} />
+        ) : isConnecting ? (
+          <RefreshIcon
+            style={{ color: "#ca8a04", fontSize: 24 }}
+            className="animate-spin"
+          />
+        ) : (
+          <CancelIcon style={{ color: "#9ca3af", fontSize: 24 }} />
+        )}
+        <div>
+          <p
+            className={`text-base font-semibold ${
+              connected
+                ? "text-[#16a34a]"
+                : isConnecting
+                  ? "text-yellow-700"
+                  : "text-gray-700"
+            }`}
+          >
+            {connected
+              ? "Connected"
+              : isConnecting
+                ? "Connecting to WhatsApp…"
+                : "Not Connected"}
+          </p>
+          <p className="text-sm text-gray-500">
+            {connected && whatsappNumber
+              ? `Linked to +${whatsappNumber}${lastConnected ? ` · Last synced ${new Date(lastConnected).toLocaleString()}` : ""}`
+              : connected
+                ? "Your WhatsApp account is linked and active."
+                : isConnecting
+                  ? "Restoring your session, please wait a moment…"
+                  : "Please scan the QR code below to connect your WhatsApp account."}
+          </p>
+        </div>
+      </div>
+
+      {/* Main grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* QR card */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7 flex flex-col items-center gap-4">
+          <div className="flex items-center justify-between w-full">
+            <h3 className="text-lg font-bold text-gray-800">QR Code</h3>
+            <button
+              onClick={fetchWhatsAppStatus}
+              className="flex items-center gap-1.5 text-sm text-[#25D366] font-semibold hover:underline"
+            >
+              <RefreshIcon style={{ fontSize: 18 }} />
+              Refresh
+            </button>
+          </div>
+
+          <div className="p-4 rounded-xl border-2 border-gray-100 bg-white shadow-inner">
+            {qrLoading && (
+              <p className="text-sm text-gray-500">Loading live QR code...</p>
+            )}
+            {!qrLoading && qrError && (
+              <p className="text-sm text-red-500">{qrError}</p>
+            )}
+            {!qrLoading && !qrError && qrImage && (
+              <div className="flex flex-col items-center gap-3">
+                <img
+                  key={qrImage}
+                  src={qrImage}
+                  alt="WhatsApp QR"
+                  className="w-[320px] h-[320px]"
+                />
+                <a
+                  href={qrImage}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-[#25D366] font-semibold hover:underline"
+                >
+                  Open full-size QR in new tab
+                </a>
+              </div>
+            )}
+            {connected && (
+              <p className="text-sm text-green-600 font-semibold">
+                WhatsApp connected successfully
+              </p>
+            )}
+
+            {!connected && !qrImage && !qrError && (
+              <p className="text-sm text-gray-500">
+                {isConnecting
+                  ? "Waiting for a new WhatsApp QR code..."
+                  : "WhatsApp is not connected yet. A new QR code will appear here automatically."}
+              </p>
+            )}
+          </div>
+
+          <p className="text-sm text-gray-400">
+            Scan this live QR code with your WhatsApp mobile app
+          </p>
+        </div>
+
+        {/* How to connect */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7 flex flex-col gap-4">
+          <h3 className="text-lg font-bold text-gray-800">How to Connect</h3>
+
+          <div className="flex flex-col gap-4">
+            {steps.map((step) => (
+              <div key={step.num} className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md shadow-[#25D366]/30">
+                  <span className="text-white text-sm font-bold">
+                    {step.num}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-gray-800">
+                    {step.title}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-0.5 leading-relaxed">
+                    {step.desc}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Important note */}
+          <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4 mt-1">
+            <InfoIcon
+              style={{ color: "#3b82f6", fontSize: 22, marginTop: 2 }}
+            />
+            <div>
+              <p className="text-base font-semibold text-blue-700">
+                Important Note
+              </p>
+              <p className="text-sm text-blue-600 mt-0.5 leading-relaxed">
+                Keep your phone connected to the internet. Your messages will
+                sync across all linked devices.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Placeholder page ───────────────────────────────────────────────────────
+const PlaceholderPage = ({ title }) => (
+  <div className="flex flex-col items-center justify-center h-64 text-center">
+    <div className="w-16 h-16 rounded-2xl bg-[#25D366]/10 flex items-center justify-center mb-5">
+      <QrCodeIcon style={{ color: "#25D366", fontSize: 32 }} />
+    </div>
+    <h2 className="text-2xl font-bold text-gray-800">{title}</h2>
+    <p className="text-base text-gray-400 mt-2">
+      This section is under construction.
+    </p>
+  </div>
+);
+
+// ── Root App ───────────────────────────────────────────────────────────────
+export default function App() {
+  const [active, setActive] = useState("qr");
+  const [connected, setConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const renderPage = () => {
+    switch (active) {
+      case "qr":
+        return (
+          <QRPage
+            connected={connected}
+            setConnected={setConnected}
+            isConnecting={isConnecting}
+            setIsConnecting={setIsConnecting}
+          />
+        );
+      default:
+        return (
+          <PlaceholderPage
+            title={navItems.find((n) => n.id === active)?.label ?? "Page"}
+          />
+        );
+    }
+  };
+
+  return (
+    <ThemeProvider theme={theme}>
+      <div className="flex min-h-screen bg-gray-50 font-sans">
+        <Sidebar active={active} setActive={setActive} />
+
+        <div className="flex-1 flex flex-col min-w-0">
+          <TopBar connected={connected} isConnecting={isConnecting} />
+          <main className="flex-1 p-6 overflow-auto">{renderPage()}</main>
+        </div>
+      </div>
+    </ThemeProvider>
+  );
+}
