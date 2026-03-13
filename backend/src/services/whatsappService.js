@@ -9,46 +9,103 @@ const QRCode = require("qrcode");
 
 const INIT_RETRY_DELAY_MS = 8000;
 const AUTH_DATA_PATH = path.resolve(__dirname, "../../.wwebjs_auth");
-const WHATSAPP_CLIENT_ID = process.env.WHATSAPP_CLIENT_ID || "main";
-const SESSION_DIR = path.join(AUTH_DATA_PATH, `session-${WHATSAPP_CLIENT_ID}`);
+const userSessions = new Map();
 
-let latestQr = null;
-let latestQrText = null;
-let qrToken = null;
-let isReady = false;
-let lastUpdated = null;
-let isInitializing = false;
-let retryTimeout = null;
-let activeClient = null;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const killStaleChrome = () => {
+const getClientIdForUser = (userId) => `user-${Number(userId)}`;
+const getSessionKeyForUser = (userId) => `session-${getClientIdForUser(userId)}`;
+const getSessionDirForUser = (userId) =>
+  path.join(AUTH_DATA_PATH, getSessionKeyForUser(userId));
+
+const getUserSessionState = (userId) => {
+  const normalizedUserId = Number(userId);
+  if (!userSessions.has(normalizedUserId)) {
+    userSessions.set(normalizedUserId, {
+      latestQr: null,
+      latestQrText: null,
+      qrToken: null,
+      isReady: false,
+      lastUpdated: null,
+      isInitializing: false,
+      retryTimeout: null,
+      activeClient: null,
+    });
+  }
+  return userSessions.get(normalizedUserId);
+};
+
+const killStaleChrome = (userId) => {
+  const sessionKey = getSessionKeyForUser(userId);
   try {
     execSync(
-      `powershell -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'chrome.exe' -and $_.CommandLine -match 'wwebjs_auth' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"`,
+      `powershell -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'chrome.exe' -and $_.CommandLine -match '${sessionKey}' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"`,
       { timeout: 10000, stdio: "pipe" },
     );
-    console.log("[WhatsApp] Killed stale chrome processes (if any).");
+    console.log(`[WhatsApp][User ${userId}] Killed stale chrome processes (if any).`);
   } catch (_) {}
 };
 
-const cleanupSessionLocks = () => {
+const cleanupSessionLocks = (userId) => {
+  const sessionDir = getSessionDirForUser(userId);
   try {
     ["SingletonLock", "SingletonCookie", "SingletonSocket"].forEach((f) => {
-      const p = path.join(SESSION_DIR, f);
+      const p = path.join(sessionDir, f);
       if (fs.existsSync(p)) {
         fs.rmSync(p, { force: true });
-        console.log(`[WhatsApp] Removed stale lock: ${f}`);
+        console.log(`[WhatsApp][User ${userId}] Removed stale lock: ${f}`);
       }
     });
   } catch (err) {
-    console.warn("[WhatsApp] Could not remove session locks:", err.message);
+    console.warn(`[WhatsApp][User ${userId}] Could not remove session locks:`, err.message);
   }
 };
 
-const createClient = () => {
+const clearRetryReinit = (userId) => {
+  const session = getUserSessionState(userId);
+  if (session.retryTimeout) {
+    clearTimeout(session.retryTimeout);
+    session.retryTimeout = null;
+  }
+};
+
+const removeAuthDataWithRetry = async (userId) => {
+  const sessionDir = getSessionDirForUser(userId);
+  if (!fs.existsSync(sessionDir)) return;
+
+  let lastError = null;
+  for (let attempt = 1; attempt <= 8; attempt += 1) {
+    try {
+      fs.rmSync(sessionDir, {
+        recursive: true,
+        force: true,
+        maxRetries: 4,
+        retryDelay: 250,
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+      const isBusy = error?.code === "EBUSY" || error?.code === "EPERM";
+      if (!isBusy || attempt === 8) {
+        throw error;
+      }
+      killStaleChrome(userId);
+      await sleep(500 * attempt);
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+};
+
+const createClient = (userId) => {
+  const session = getUserSessionState(userId);
+  const clientId = getClientIdForUser(userId);
+
   const c = new Client({
     authStrategy: new LocalAuth({
-      clientId: WHATSAPP_CLIENT_ID,
+      clientId,
       dataPath: AUTH_DATA_PATH,
     }),
     puppeteer: {
@@ -63,80 +120,76 @@ const createClient = () => {
   });
 
   c.on("qr", async (qr) => {
+    console.log(`[WhatsApp][User ${userId}] QR code ready - scan with your phone:`);
+    qrcode.generate(qr, { small: true });
 
-  console.log("[WhatsApp] QR code ready - scan with your phone:");
-  qrcode.generate(qr, { small: true });
+    try {
+      session.latestQrText = qr;
+      session.latestQr = await QRCode.toDataURL(qr);
+    } catch (err) {
+      console.error(`[WhatsApp][User ${userId}] QR generation error:`, err);
+      session.latestQr = null;
+    }
 
-  try {
-    latestQrText = qr;
-    latestQr = await QRCode.toDataURL(qr);
-  } catch (err) {
-    console.error("QR generation error:", err);
-    latestQr = null;
-  }
+    session.isReady = false;
+    session.isInitializing = true;
+    session.qrToken = Date.now();
+    session.lastUpdated = new Date().toISOString();
 
-  isReady = false;
-  isInitializing = true;   // IMPORTANT
-
-  qrToken = Date.now();
-  lastUpdated = new Date().toISOString();
-
-  db.query(
-    `UPDATE whatsapp_sessions SET status = 'disconnected' WHERE user_id = 1`
-  );
-});
+    db.query(
+      `UPDATE whatsapp_sessions SET status = 'disconnected' WHERE user_id = ?`,
+      [userId],
+    );
+  });
 
   c.on("loading_screen", (percent, message) => {
-    console.log(`[WhatsApp] Loading ${percent}% - ${message}`);
+    console.log(`[WhatsApp][User ${userId}] Loading ${percent}% - ${message}`);
   });
 
   c.on("authenticated", () => {
-    console.log("[WhatsApp] Authenticated - session saved for next start.");
-    // QR has been successfully scanned; hide it and show connecting state
-    latestQr = null;
-    latestQrText = null;
-    qrToken = null;
-    isInitializing = true;
-    isReady = false;
-    lastUpdated = new Date().toISOString();
+    console.log(`[WhatsApp][User ${userId}] Authenticated - session saved for next start.`);
+    session.latestQr = null;
+    session.latestQrText = null;
+    session.qrToken = null;
+    session.isInitializing = true;
+    session.isReady = false;
+    session.lastUpdated = new Date().toISOString();
   });
 
   c.on("change_state", (state) => {
-    // Keep status transitions event-driven and stable
     if (state === "CONNECTED") {
-      isReady = true;
-      isInitializing = false;
-      latestQr = null;
-      latestQrText = null;
-      qrToken = null;
+      session.isReady = true;
+      session.isInitializing = false;
+      session.latestQr = null;
+      session.latestQrText = null;
+      session.qrToken = null;
     } else if (state === "OPENING" || state === "PAIRING") {
-      isReady = false;
-      isInitializing = true;
+      session.isReady = false;
+      session.isInitializing = true;
     } else if (state === "UNPAIRED" || state === "UNPAIRED_IDLE") {
-      isReady = false;
-      isInitializing = false;
-      latestQr = null;
-      latestQrText = null;
-      qrToken = null;
+      session.isReady = false;
+      session.isInitializing = false;
+      session.latestQr = null;
+      session.latestQrText = null;
+      session.qrToken = null;
     }
-    lastUpdated = new Date().toISOString();
+    session.lastUpdated = new Date().toISOString();
   });
 
   c.on("ready", () => {
-    console.log("[WhatsApp] Client is Ready!");
+    console.log(`[WhatsApp][User ${userId}] Client is Ready!`);
 
-    isInitializing = false;
-    isReady = true;
-    latestQr = null;
-    latestQrText = null;
-    qrToken = null;
-    lastUpdated = new Date().toISOString();
+    session.isInitializing = false;
+    session.isReady = true;
+    session.latestQr = null;
+    session.latestQrText = null;
+    session.qrToken = null;
+    session.lastUpdated = new Date().toISOString();
 
     try {
       const number = c.info.wid.user;
-      console.log("[WhatsApp] Connected number:", number);
+      console.log(`[WhatsApp][User ${userId}] Connected number:`, number);
 
-      // Upsert: update existing row or insert new one
       const upsertQuery = `
         INSERT INTO whatsapp_sessions (user_id, whatsapp_number, status, last_connected)
         VALUES (?, ?, 'connected', NOW())
@@ -146,121 +199,165 @@ const createClient = () => {
           last_connected = NOW()
       `;
 
-      db.query(upsertQuery, [1, number], (err) => {
+      db.query(upsertQuery, [userId, number], (err) => {
         if (err) {
-          console.error("[DB] Upsert session error:", err.message);
+          console.error(`[DB][User ${userId}] Upsert session error:`, err.message);
         } else {
-          console.log("[DB] WhatsApp session saved/updated for", number);
+          console.log(`[DB][User ${userId}] WhatsApp session saved/updated for`, number);
         }
       });
     } catch (err) {
-      console.error("[WhatsApp] Could not read client info:", err.message);
+      console.error(`[WhatsApp][User ${userId}] Could not read client info:`, err.message);
     }
   });
 
   c.on("auth_failure", (msg) => {
-    console.error("[WhatsApp] Auth failure:", msg);
-    isInitializing = false;
-    isReady = false;
-    latestQr = null;
-    latestQrText = null;
-    qrToken = null;
-    lastUpdated = new Date().toISOString();
-    scheduleReinit();
+    console.error(`[WhatsApp][User ${userId}] Auth failure:`, msg);
+    session.isInitializing = false;
+    session.isReady = false;
+    session.latestQr = null;
+    session.latestQrText = null;
+    session.qrToken = null;
+    session.lastUpdated = new Date().toISOString();
+    scheduleReinit(userId);
   });
 
   c.on("disconnected", (reason) => {
-    console.log("[WhatsApp] Disconnected:", reason);
+    console.log(`[WhatsApp][User ${userId}] Disconnected:`, reason);
 
-    isInitializing = false;
-    isReady = false;
-    latestQr = null;
-    latestQrText = null;
-    qrToken = null;
-    lastUpdated = new Date().toISOString();
+    session.isInitializing = false;
+    session.isReady = false;
+    session.latestQr = null;
+    session.latestQrText = null;
+    session.qrToken = null;
+    session.lastUpdated = new Date().toISOString();
 
     db.query(
-      `UPDATE whatsapp_sessions SET status = 'disconnected' WHERE user_id = 1`,
+      `UPDATE whatsapp_sessions SET status = 'disconnected' WHERE user_id = ?`,
+      [userId],
       (err) => {
         if (err) {
-          console.error("[DB] Update session error:", err.message);
+          console.error(`[DB][User ${userId}] Update session error:`, err.message);
         } else {
-          console.log("[DB] Session marked as disconnected");
+          console.log(`[DB][User ${userId}] Session marked as disconnected`);
         }
       },
     );
 
-    scheduleReinit();
+    scheduleReinit(userId);
   });
 
   return c;
 };
 
-const scheduleReinit = (delay = INIT_RETRY_DELAY_MS) => {
-  if (retryTimeout) return;
-  console.log(`[WhatsApp] Scheduling reinit in ${delay / 1000}s...`);
-  retryTimeout = setTimeout(() => {
-    retryTimeout = null;
-    initializeClient();
+const scheduleReinit = (userId, delay = INIT_RETRY_DELAY_MS) => {
+  const session = getUserSessionState(userId);
+  if (session.retryTimeout) return;
+  console.log(`[WhatsApp][User ${userId}] Scheduling reinit in ${delay / 1000}s...`);
+  session.retryTimeout = setTimeout(() => {
+    session.retryTimeout = null;
+    initializeClient(userId);
   }, delay);
 };
 
-const initializeClient = async () => {
-  if (isInitializing) return;
-  isInitializing = true;
+const initializeClient = async (userId) => {
+  const session = getUserSessionState(userId);
+  if (session.isInitializing) return;
+  session.isInitializing = true;
 
-  if (activeClient) {
+  if (session.activeClient) {
     try {
-      await activeClient.destroy();
+      await session.activeClient.destroy();
     } catch (_) {}
-    activeClient = null;
+    session.activeClient = null;
   }
 
-  killStaleChrome();
-  cleanupSessionLocks();
+  killStaleChrome(userId);
+  cleanupSessionLocks(userId);
 
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   try {
-    activeClient = createClient();
-    await activeClient.initialize();
-    // NOTE: isInitializing stays true here until 'ready' / 'auth_failure' / 'disconnected' fires
+    session.activeClient = createClient(userId);
+    await session.activeClient.initialize();
   } catch (error) {
-    console.error("[WhatsApp] Initialization failed:", error.message);
-    if (activeClient) {
+    console.error(`[WhatsApp][User ${userId}] Initialization failed:`, error.message);
+    if (session.activeClient) {
       try {
-        await activeClient.destroy();
+        await session.activeClient.destroy();
       } catch (_) {}
-      activeClient = null;
+      session.activeClient = null;
     }
-    isInitializing = false;
-    isReady = false;
-    latestQr = null;
-    latestQrText = null;
-    qrToken = null;
-    lastUpdated = new Date().toISOString();
-    scheduleReinit();
+    session.isInitializing = false;
+    session.isReady = false;
+    session.latestQr = null;
+    session.latestQrText = null;
+    session.qrToken = null;
+    session.lastUpdated = new Date().toISOString();
+    scheduleReinit(userId);
   }
 };
 
-initializeClient();
+const logoutAndReinitialize = async (userId) => {
+  const session = getUserSessionState(userId);
+  clearRetryReinit(userId);
 
-const getStatus = () => {
-  const hasQr = Boolean(latestQr);
-  const connected = Boolean(isReady && !hasQr);
-  const isConnectingNow = Boolean(isInitializing && !connected && !hasQr);
+  if (session.activeClient) {
+    try {
+      await session.activeClient.destroy();
+    } catch (_) {}
+    session.activeClient = null;
+  }
+
+  session.isReady = false;
+  session.isInitializing = false;
+  session.latestQr = null;
+  session.latestQrText = null;
+  session.qrToken = null;
+  session.lastUpdated = new Date().toISOString();
+
+  killStaleChrome(userId);
+  cleanupSessionLocks(userId);
+  await sleep(1200);
+  await removeAuthDataWithRetry(userId);
+
+  await new Promise((resolve) => {
+    db.query(
+      `UPDATE whatsapp_sessions
+       SET status = 'disconnected', whatsapp_number = NULL
+       WHERE user_id = ?`,
+      [userId],
+      () => resolve(),
+    );
+  });
+
+  await initializeClient(userId);
+};
+
+const getStatus = (userId) => {
+  const session = getUserSessionState(userId);
+
+  if (!session.activeClient && !session.isInitializing) {
+    initializeClient(userId).catch((error) => {
+      console.error(`[WhatsApp][User ${userId}] Lazy init failed:`, error.message);
+    });
+  }
+
+  const hasQr = Boolean(session.latestQr);
+  const connected = Boolean(session.isReady && !hasQr);
+  const isConnectingNow = Boolean(session.isInitializing && !connected && !hasQr);
 
   return {
     connected,
     isConnecting: isConnectingNow,
-    isInitializing,
+    isInitializing: session.isInitializing,
     hasQr,
-    qr: latestQrText,
-    qrImage: latestQr,
-    qrToken,
-    lastUpdated,
-    whatsappNumber: activeClient?.info?.wid?.user || null
+    qr: session.latestQrText,
+    qrImage: session.latestQr,
+    qrToken: session.qrToken,
+    lastUpdated: session.lastUpdated,
+    whatsappNumber: session.activeClient?.info?.wid?.user || null,
   };
 };
 
-module.exports = { getStatus };
+module.exports = { getStatus, logoutAndReinitialize };

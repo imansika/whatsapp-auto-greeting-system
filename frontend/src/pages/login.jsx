@@ -433,12 +433,6 @@ const RegisterPage = ({ onSwitch }) => {
 export default function App() {
   const [page, setPage] = useState("login");
 
-  // Redirect to dashboard if already logged in
-  if (authService.isAuthenticated()) {
-    window.location.href = "/dashboard";
-    return null;
-  }
-
   const MY_IMAGE_SRC = bg;
 
   return (

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { createTheme, ThemeProvider } from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import authService from "../services/authservice";
+import MessagesPage from "../component/MessagesPage";
+import GreetingMessagesPage from "../component/Greetingmessagespage";
+import SettingsPage from "../component/Settingspage";
+
 import {
   Dashboard as DashboardIcon,
   Message as MessageIcon,
@@ -27,9 +33,9 @@ const theme = createTheme({
 // ── Nav items ──────────────────────────────────────────────────────────────
 const navItems = [
   {
-    id: "dashboard",
+    id: "qr",
     label: "Dashboard",
-    icon: <DashboardIcon fontSize="small" />,
+    icon: <QrCodeIcon fontSize="small" />,
   },
   { id: "messages", label: "Messages", icon: <MessageIcon fontSize="small" /> },
   {
@@ -37,12 +43,7 @@ const navItems = [
     label: "Greeting Messages",
     icon: <ChatIcon fontSize="small" />,
   },
-  {
-    id: "qr",
-    label: "WhatsApp QR Code",
-    icon: <QrCodeIcon fontSize="small" />,
-  },
-  { id: "logs", label: "Message Logs", icon: <LogsIcon fontSize="small" /> },
+
   {
     id: "settings",
     label: "Settings",
@@ -51,7 +52,7 @@ const navItems = [
 ];
 
 // ── Sidebar ────────────────────────────────────────────────────────────────
-const Sidebar = ({ active, setActive }) => (
+const Sidebar = ({ active, setActive, user, onLogout }) => (
   <aside className="flex flex-col w-96 min-h-screen bg-white border-r border-gray-100 shadow-sm flex-shrink-0">
     {/* Brand */}
     <div className="flex items-center gap-2 px-4 py-4 bg-[#25D366]">
@@ -66,13 +67,15 @@ const Sidebar = ({ active, setActive }) => (
     {/* User */}
     <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
       <div className="w-10 h-10 rounded-full bg-[#25D366]/15 flex items-center justify-center flex-shrink-0">
-        <span className="text-[#25D366] font-bold text-base">JD</span>
+        <span className="text-[#25D366] font-bold text-base">
+          {user.initials}
+        </span>
       </div>
       <div className="min-w-0">
         <p className="text-base font-semibold text-gray-800 truncate">
-          John Doe
+          {user.name}
         </p>
-        <p className="text-sm text-gray-400 truncate">john@example.com</p>
+        <p className="text-sm text-gray-400 truncate">{user.email}</p>
       </div>
     </div>
 
@@ -99,7 +102,10 @@ const Sidebar = ({ active, setActive }) => (
 
     {/* Logout */}
     <div className="px-3 pb-5">
-      <button className="flex items-center gap-3 px-3 py-3 rounded-xl text-base font-medium text-red-500 hover:bg-red-50 transition-all w-full">
+      <button
+        onClick={onLogout}
+        className="flex items-center gap-3 px-3 py-3 rounded-xl text-base font-medium text-red-500 hover:bg-red-50 transition-all w-full"
+      >
         <LogoutIcon fontSize="small" />
         Logout
       </button>
@@ -142,6 +148,12 @@ const TopBar = ({ connected, isConnecting }) => {
 
 const WHATSAPP_API_URL = "http://localhost:3000/api/whatsapp/status";
 const WHATSAPP_QR_BASE_URL = "http://localhost:3000";
+const WHATSAPP_LOGOUT_API_URL = "http://localhost:3000/api/whatsapp/logout";
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 // ── QR Page ────────────────────────────────────────────────────────────────
 const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
@@ -151,12 +163,15 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
   // const [qrUrl, setQrUrl] = useState(null);
   const [whatsappNumber, setWhatsappNumber] = useState(null);
   const [lastConnected, setLastConnected] = useState(null);
+  const [logoutNotice, setLogoutNotice] = useState("");
+  const [logoutLoading, setLogoutLoading] = useState(false);
 
   const fetchWhatsAppStatus = useCallback(async () => {
     try {
       const response = await axios.get(WHATSAPP_API_URL, {
         params: { t: Date.now() },
         headers: {
+          ...getAuthHeaders(),
           "Cache-Control": "no-cache",
           Pragma: "no-cache",
         },
@@ -164,8 +179,9 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
 
       const isConnectedNow = Boolean(response.data.connected);
       const hasQrNow = Boolean(response.data.hasQr);
-      const nextQrImage = response.data.qrImage
-        || (response.data.qrUrl
+      const nextQrImage =
+        response.data.qrImage ||
+        (response.data.qrUrl
           ? `${WHATSAPP_QR_BASE_URL}${response.data.qrUrl}`
           : null);
 
@@ -180,6 +196,7 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
       }
       setWhatsappNumber(response.data.whatsappNumber || null);
       setLastConnected(response.data.lastConnected || null);
+      setLogoutNotice("");
       setQrError("");
     } catch (error) {
       setConnected(false);
@@ -192,6 +209,40 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
       setQrLoading(false);
     }
   }, [setConnected, setIsConnecting]);
+
+  const logoutWhatsApp = async () => {
+    if (logoutLoading) return;
+
+    setLogoutLoading(true);
+    setQrError("");
+    setLogoutNotice("");
+
+    try {
+      const response = await axios.post(
+        WHATSAPP_LOGOUT_API_URL,
+        {},
+        { headers: getAuthHeaders() },
+      );
+      setConnected(false);
+      setIsConnecting(true);
+      setQrImage(null);
+      setWhatsappNumber(null);
+      setLastConnected(null);
+      setLogoutNotice(
+        response?.data?.message ||
+          "Logged out from WhatsApp. Waiting for a new QR code...",
+      );
+      await fetchWhatsAppStatus();
+    } catch (err) {
+      setLogoutNotice("");
+      setQrError(
+        err?.response?.data?.error ||
+          "Failed to logout WhatsApp. Please try again.",
+      );
+    } finally {
+      setLogoutLoading(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -338,9 +389,25 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
               </div>
             )}
             {connected && (
-              <p className="text-sm text-green-600 font-semibold">
-                WhatsApp connected successfully
-              </p>
+              <div className="flex flex-col items-center gap-3">
+                <p className="text-sm text-green-600 font-semibold">
+                  WhatsApp connected successfully
+                </p>
+                <button
+                  type="button"
+                  onClick={logoutWhatsApp}
+                  disabled={logoutLoading}
+                  className="inline-flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 border border-red-200 transition-colors hover:bg-red-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <LogoutIcon style={{ fontSize: 18 }} />
+                  {logoutLoading ? "Logging out..." : "Logout from WhatsApp"}
+                </button>
+                {logoutNotice && (
+                  <p className="text-xs text-gray-500 text-center max-w-xs">
+                    {logoutNotice}
+                  </p>
+                )}
+              </div>
             )}
 
             {!connected && !qrImage && !qrError && (
@@ -417,9 +484,26 @@ const PlaceholderPage = ({ title }) => (
 
 // ── Root App ───────────────────────────────────────────────────────────────
 export default function App() {
+  const navigate = useNavigate();
   const [active, setActive] = useState("qr");
   const [connected, setConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+
+  const rawUser = authService.getCurrentUser();
+  const displayName = rawUser?.username || "User";
+  const displayEmail = rawUser?.email || "No email";
+  const initials =
+    displayName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || "")
+      .join("") || "U";
+
+  const handleAppLogout = () => {
+    authService.logout();
+    navigate("/", { replace: true });
+  };
 
   const renderPage = () => {
     switch (active) {
@@ -432,6 +516,23 @@ export default function App() {
             setIsConnecting={setIsConnecting}
           />
         );
+      case "messages":
+        return <MessagesPage />;
+
+      case "greeting":
+        return <GreetingMessagesPage />;
+
+      case "settings":
+        return (
+          <SettingsPage
+            user={{
+              name: displayName,
+              email: displayEmail,
+              username: displayName,
+            }}
+          />
+        );
+
       default:
         return (
           <PlaceholderPage
@@ -444,7 +545,16 @@ export default function App() {
   return (
     <ThemeProvider theme={theme}>
       <div className="flex min-h-screen bg-gray-50 font-sans">
-        <Sidebar active={active} setActive={setActive} />
+        <Sidebar
+          active={active}
+          setActive={setActive}
+          onLogout={handleAppLogout}
+          user={{
+            name: displayName,
+            email: displayEmail,
+            initials,
+          }}
+        />
 
         <div className="flex-1 flex flex-col min-w-0">
           <TopBar connected={connected} isConnecting={isConnecting} />

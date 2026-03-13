@@ -2,6 +2,32 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:3000/api/auth';
 
+const parseJwtPayload = (token) => {
+  try {
+    const base64Payload = token.split('.')[1];
+    const normalized = base64Payload.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = decodeURIComponent(
+      atob(normalized)
+        .split('')
+        .map((char) => `%${`00${char.charCodeAt(0).toString(16)}`.slice(-2)}`)
+        .join(''),
+    );
+    return JSON.parse(decoded);
+  } catch (_) {
+    return null;
+  }
+};
+
+const isTokenStillValid = (token) => {
+  if (!token) return false;
+
+  const payload = parseJwtPayload(token);
+  if (!payload || !payload.exp) return false;
+
+  const nowInSeconds = Math.floor(Date.now() / 1000);
+  return payload.exp > nowInSeconds;
+};
+
 // Create axios instance with token in headers
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -73,7 +99,15 @@ const authService = {
 
   // Check if user is authenticated
   isAuthenticated: () => {
-    return !!localStorage.getItem('token');
+    const token = localStorage.getItem('token');
+    const valid = isTokenStillValid(token);
+
+    if (!valid) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
+
+    return valid;
   },
 };
 

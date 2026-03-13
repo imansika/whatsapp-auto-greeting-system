@@ -1,29 +1,37 @@
 const express = require('express');
 const QRCode = require('qrcode');
 const db = require('../db');
+const authenticateToken = require('../middleware/auth');
 const { getStatus } = require('../services/whatsappService');
+const { logoutWhatsApp } = require("../controllers/whatsappLogout");
 
 const router = express.Router();
+router.use(authenticateToken);
 
 // Helper to read latest session row from DB
-const getDbSession = () =>
+const getDbSession = (userId) =>
   new Promise((resolve) => {
     db.query(
       `SELECT whatsapp_number, status, last_connected
        FROM whatsapp_sessions
-       WHERE user_id = 1
+       WHERE user_id = ?
        ORDER BY id DESC
        LIMIT 1`,
+      [userId],
       (err, rows) => resolve(err || !rows.length ? null : rows[0]),
     );
   });
 
 router.get('/status', async (req, res) => {
   try {
-    const status = getStatus();
+    const userId = Number(req.user?.id);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    const status = getStatus(userId);
 
     // Read last known session from DB (whatsapp_number, last_connected)
-    const dbSession = await getDbSession();
+    const dbSession = await getDbSession(userId);
 
     const hasQr = Boolean(status.hasQr);
     const isConnected = Boolean(status.connected);
@@ -55,7 +63,11 @@ router.get('/status', async (req, res) => {
 
 router.get('/qr', async (req, res) => {
   try {
-    const status = getStatus();
+    const userId = Number(req.user?.id);
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    const status = getStatus(userId);
 
     if (!status.qr) {
       return res.status(404).json({ message: 'QR not available' });
@@ -84,5 +96,7 @@ router.get('/qr', async (req, res) => {
     });
   }
 });
+
+router.post("/logout", logoutWhatsApp);
 
 module.exports = router;
