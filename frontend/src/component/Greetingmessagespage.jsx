@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Chat as ChatIcon,
   Edit as EditIcon,
@@ -7,38 +7,7 @@ import {
   Close as CloseIcon,
   Save as SaveIcon,
 } from "@mui/icons-material";
-
-// ── Sample data ────────────────────────────────────────────────────────────
-const initialGreetings = [
-  {
-    id: 1,
-    title: "Default Greeting",
-    message: "Thank you for contacting us! We have received your message and will get back to you shortly.",
-    keywords: ["hi", "hello", "hey"],
-    enabled: true,
-  },
-  {
-    id: 2,
-    title: "Business Hours",
-    message: "We are open Monday to Friday, 9 AM to 6 PM. How can we assist you?",
-    keywords: ["hours", "open", "time", "when"],
-    enabled: true,
-  },
-  {
-    id: 3,
-    title: "Product Inquiry",
-    message: "Thank you for your interest in our products! Please let us know which product you'd like to know more about.",
-    keywords: ["product", "price", "cost", "buy"],
-    enabled: true,
-  },
-  {
-    id: 4,
-    title: "Support Request",
-    message: "We're sorry to hear you're facing an issue. Our support team will assist you within 24 hours.",
-    keywords: ["help", "support", "issue", "problem"],
-    enabled: false,
-  },
-];
+import greetingService from "../services/greetingservice";
 
 // ── Toggle Switch ──────────────────────────────────────────────────────────
 const Toggle = ({ checked, onChange }) => (
@@ -68,7 +37,7 @@ const KeywordTag = ({ label, onRemove }) => (
 );
 
 // ── Modal (Add / Edit) ─────────────────────────────────────────────────────
-const GreetingModal = ({ greeting, onSave, onClose }) => {
+const GreetingModal = ({ greeting, onSave, onClose, saving }) => {
   const [title, setTitle] = useState(greeting?.title || "");
   const [message, setMessage] = useState(greeting?.message || "");
   const [keywords, setKeywords] = useState(greeting?.keywords || []);
@@ -171,17 +140,20 @@ const GreetingModal = ({ greeting, onSave, onClose }) => {
         <div className="flex items-center justify-end gap-3 pt-1">
           <button
             onClick={onClose}
+            disabled={saving}
             className="px-5 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 text-base font-bold hover:bg-gray-50 transition-all"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            disabled={!title.trim() || !message.trim()}
+            disabled={!title.trim() || !message.trim() || saving}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] disabled:opacity-40 disabled:cursor-not-allowed text-white text-base font-bold shadow-lg shadow-[#25D366]/25 transition-all"
           >
             <SaveIcon style={{ fontSize: 16 }} />
-            {greeting ? "Save Changes" : "Add Greeting"}
+            {saving
+              ? (greeting ? "Saving..." : "Adding...")
+              : (greeting ? "Save Changes" : "Add Greeting")}
           </button>
         </div>
       </div>
@@ -241,36 +213,97 @@ const GreetingCard = ({ greeting, onToggle, onEdit, onDelete }) => (
 
 // ── Greeting Messages Page ─────────────────────────────────────────────────
 export default function GreetingMessagesPage() {
-  const [greetings, setGreetings] = useState(initialGreetings);
+  const [greetings, setGreetings] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const loadGreetings = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await greetingService.list();
+        setGreetings(data);
+      } catch (err) {
+        setError(
+          err?.response?.data?.error || "Failed to load greeting messages.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadGreetings();
+  }, []);
 
   const openAdd = () => { setEditTarget(null); setModalOpen(true); };
   const openEdit = (g) => { setEditTarget(g); setModalOpen(true); };
   const closeModal = () => { setModalOpen(false); setEditTarget(null); };
 
-  const handleSave = (data) => {
-    if (editTarget) {
-      setGreetings((prev) =>
-        prev.map((g) => (g.id === editTarget.id ? { ...g, ...data } : g))
+  const handleSave = async (data) => {
+    try {
+      setSaving(true);
+      setError("");
+
+      if (editTarget) {
+        const updatedGreeting = await greetingService.update(editTarget.id, {
+          ...data,
+          enabled: editTarget.enabled,
+        });
+        setGreetings((prev) =>
+          prev.map((g) => (g.id === editTarget.id ? updatedGreeting : g)),
+        );
+      } else {
+        const createdGreeting = await greetingService.create({
+          ...data,
+          enabled: true,
+        });
+        setGreetings((prev) => [createdGreeting, ...prev]);
+      }
+
+      closeModal();
+    } catch (err) {
+      setError(
+        err?.response?.data?.error || "Failed to save greeting message.",
       );
-    } else {
-      setGreetings((prev) => [
-        ...prev,
-        { id: Date.now(), enabled: true, ...data },
-      ]);
+    } finally {
+      setSaving(false);
     }
-    closeModal();
   };
 
-  const handleToggle = (id) => {
-    setGreetings((prev) =>
-      prev.map((g) => (g.id === id ? { ...g, enabled: !g.enabled } : g))
-    );
+  const handleToggle = async (id) => {
+    const currentGreeting = greetings.find((g) => g.id === id);
+    if (!currentGreeting) return;
+
+    try {
+      setError("");
+      const updatedGreeting = await greetingService.updateStatus(
+        id,
+        !currentGreeting.enabled,
+      );
+      setGreetings((prev) =>
+        prev.map((g) => (g.id === id ? updatedGreeting : g)),
+      );
+    } catch (err) {
+      setError(
+        err?.response?.data?.error || "Failed to update greeting status.",
+      );
+    }
   };
 
-  const handleDelete = (id) => {
-    setGreetings((prev) => prev.filter((g) => g.id !== id));
+  const handleDelete = async (id) => {
+    try {
+      setError("");
+      await greetingService.remove(id);
+      setGreetings((prev) => prev.filter((g) => g.id !== id));
+    } catch (err) {
+      setError(
+        err?.response?.data?.error || "Failed to delete greeting message.",
+      );
+    }
   };
 
   return (
@@ -294,9 +327,19 @@ export default function GreetingMessagesPage() {
         </button>
       </div>
 
+      {error && (
+        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-base text-red-600">
+          {error}
+        </div>
+      )}
+
       {/* Cards */}
       <div className="flex flex-col gap-4">
-        {greetings.length > 0 ? (
+        {loading ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-12 text-center text-base text-gray-500">
+            Loading greeting messages...
+          </div>
+        ) : greetings.length > 0 ? (
           greetings.map((g) => (
             <GreetingCard
               key={g.id}
@@ -332,6 +375,7 @@ export default function GreetingMessagesPage() {
           greeting={editTarget}
           onSave={handleSave}
           onClose={closeModal}
+          saving={saving}
         />
       )}
     </div>

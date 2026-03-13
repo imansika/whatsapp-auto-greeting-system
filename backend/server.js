@@ -6,6 +6,8 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 // Import database connection to initialize it
 const db = require('./src/db');
 const authRoutes = require('./src/routes/auth');
+const greetingRoutes = require('./src/routes/greetings');
+const messageLogsRoutes = require('./src/routes/messageLogs');
 const whatsappRoutes = require('./src/routes/whatsapp');
 
 const app = express();
@@ -17,6 +19,8 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/greetings', greetingRoutes);
+app.use('/api/message-logs', messageLogsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 
 // Health check route

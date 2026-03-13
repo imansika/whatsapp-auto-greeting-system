@@ -1,83 +1,113 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search as SearchIcon,
   FilterList as FilterIcon,
   AccessTime as TimeIcon,
   DoneAll as DoneAllIcon,
-  Circle as CircleIcon,
 } from "@mui/icons-material";
-
-// ── Sample data ────────────────────────────────────────────────────────────
-const sampleMessages = [
-  {
-    id: 1,
-    name: "Sarah Johnson",
-    phone: "+1 234-567-8900",
-    initials: "S",
-    color: "#25D366",
-    time: "2 minutes ago",
-    online: false,
-    incoming: "Hi, I need information about your services. Can you help me?",
-    autoReply: "Thank you for reaching out! We'd be happy to help you with information about our services.",
-  },
-  {
-    id: 2,
-    name: "Michael Chen",
-    phone: "+1 234-567-8901",
-    initials: "M",
-    color: "#3b82f6",
-    time: "15 minutes ago",
-    online: false,
-    incoming: "What are your business hours?",
-    autoReply: "We are open Monday to Friday, 9 AM to 6 PM. How can we assist you?",
-  },
-  {
-    id: 3,
-    name: "Emily Davis",
-    phone: "+1 234-567-8902",
-    initials: "E",
-    color: "#f59e0b",
-    time: "1 hour ago",
-    online: true,
-    incoming: "Do you offer free consultations?",
-    autoReply: "Yes! We offer a free 30-minute consultation. Would you like to schedule one?",
-  },
-  {
-    id: 4,
-    name: "James Wilson",
-    phone: "+1 234-567-8903",
-    initials: "J",
-    color: "#8b5cf6",
-    time: "2 hours ago",
-    online: false,
-    incoming: "I'd like to know more about your pricing plans.",
-    autoReply: "We have flexible pricing plans starting from $29/month. I'll send you a detailed breakdown shortly.",
-  },
-  {
-    id: 5,
-    name: "Priya Patel",
-    phone: "+1 234-567-8904",
-    initials: "P",
-    color: "#ef4444",
-    time: "3 hours ago",
-    online: true,
-    incoming: "Can I speak to a customer support agent?",
-    autoReply: "Our support team is available 24/7. A representative will get back to you within 10 minutes.",
-  },
-  {
-    id: 6,
-    name: "Carlos Rivera",
-    phone: "+1 234-567-8905",
-    initials: "C",
-    color: "#14b8a6",
-    time: "5 hours ago",
-    online: false,
-    incoming: "Is there a mobile app available?",
-    autoReply: "Yes! Our mobile app is available on both iOS and Android. Download it from the App Store or Google Play.",
-  },
-];
+import messageLogService from "../services/messagelogservice";
 
 const FILTER_OPTIONS = ["All Messages", "Auto-Replied", "Pending", "Online"];
+const AVATAR_COLORS = ["#25D366", "#3b82f6", "#f59e0b", "#8b5cf6", "#ef4444", "#14b8a6"];
+
+const toRelativeTime = (value) => {
+  const date = new Date(value);
+  const now = Date.now();
+  const diffMs = Math.max(0, now - date.getTime());
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diffMs < minute) return "just now";
+  if (diffMs < hour) return `${Math.floor(diffMs / minute)} minute(s) ago`;
+  if (diffMs < day) return `${Math.floor(diffMs / hour)} hour(s) ago`;
+  return `${Math.floor(diffMs / day)} day(s) ago`;
+};
+
+const colorFromPhone = (phone) => {
+  const key = String(phone || "");
+  const hash = key.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+};
+
+const displayNameFromPhone = (phone) => {
+  const digits = String(phone || "").replace(/\D/g, "");
+  const suffix = digits.slice(-4) || "User";
+  return `Contact ${suffix}`;
+};
+
+const initialsFromPhone = (phone) => {
+  const digits = String(phone || "").replace(/\D/g, "");
+  return (digits.slice(-2) || "U").toUpperCase();
+};
+
+const buildMessageCards = (rows) => {
+  const ordered = [...rows].sort((a, b) => {
+    const timeDiff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    if (timeDiff !== 0) return timeDiff;
+    // Tiebreaker: incoming always has a lower id than the outgoing that follows
+    return Number(a.id) - Number(b.id);
+  });
+
+  const pendingBySender = new Map();
+  const cards = [];
+
+  ordered.forEach((row) => {
+    const sender = row.sender_number;
+    if (!sender) return;
+
+    if (row.direction === "incoming") {
+      if (!pendingBySender.has(sender)) {
+        pendingBySender.set(sender, []);
+      }
+      pendingBySender.get(sender).push(row);
+      return;
+    }
+
+    if (row.direction === "outgoing") {
+      const pendingQueue = pendingBySender.get(sender) || [];
+      const incoming = pendingQueue.shift();
+
+      if (incoming) {
+        cards.push({
+          id: incoming.id,
+          name: displayNameFromPhone(sender),
+          phone: sender,
+          initials: initialsFromPhone(sender),
+          color: colorFromPhone(sender),
+          time: toRelativeTime(incoming.created_at),
+          online: false,
+          incoming: incoming.message_text || "",
+          autoReply: row.message_text || "",
+          status: "auto-replied",
+          createdAt: incoming.created_at,
+        });
+      }
+    }
+  });
+
+  pendingBySender.forEach((pendingRows, sender) => {
+    pendingRows.forEach((incoming) => {
+      cards.push({
+        id: incoming.id,
+        name: displayNameFromPhone(sender),
+        phone: sender,
+        initials: initialsFromPhone(sender),
+        color: colorFromPhone(sender),
+        time: toRelativeTime(incoming.created_at),
+        online: false,
+        incoming: incoming.message_text || "",
+        autoReply: "Pending auto-reply",
+        status: "pending",
+        createdAt: incoming.created_at,
+      });
+    });
+  });
+
+  return cards.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+};
 
 // ── Message Card ───────────────────────────────────────────────────────────
 const MessageCard = ({ msg }) => (
@@ -140,16 +170,51 @@ export default function MessagesPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All Messages");
   const [showFilter, setShowFilter] = useState(false);
+  const [messageCards, setMessageCards] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const filtered = sampleMessages.filter((msg) => {
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchLogs = async () => {
+      try {
+        if (!mounted) return;
+        setLoading(true);
+        setError("");
+        const rows = await messageLogService.list();
+        if (!mounted) return;
+        setMessageCards(buildMessageCards(rows));
+      } catch (err) {
+        if (!mounted) return;
+        setError(err?.response?.data?.error || "Failed to load messages.");
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 5000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const filtered = useMemo(() => messageCards.filter((msg) => {
     const matchesSearch =
       msg.name.toLowerCase().includes(search.toLowerCase()) ||
       msg.phone.includes(search) ||
       msg.incoming.toLowerCase().includes(search.toLowerCase());
 
     if (filter === "Online") return matchesSearch && msg.online;
+    if (filter === "Pending") return matchesSearch && msg.status === "pending";
+    if (filter === "Auto-Replied") return matchesSearch && msg.status === "auto-replied";
     return matchesSearch;
-  });
+  }), [messageCards, search, filter]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -160,6 +225,12 @@ export default function MessagesPage() {
           View and manage all incoming messages and auto-replies
         </p>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-base text-red-600">
+          {error}
+        </div>
+      )}
 
       {/* Search + Filter row */}
       <div className="flex items-center gap-3">
@@ -217,12 +288,16 @@ export default function MessagesPage() {
       {/* Count */}
       <p className="text-base text-gray-500">
         Showing <span className="font-semibold text-gray-700">{filtered.length}</span> of{" "}
-        <span className="font-semibold text-gray-700">{sampleMessages.length}</span> messages
+        <span className="font-semibold text-gray-700">{messageCards.length}</span> messages
       </p>
 
       {/* Message list */}
       <div className="flex flex-col gap-4">
-        {filtered.length > 0 ? (
+        {loading ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-12 text-center text-base text-gray-500">
+            Loading messages...
+          </div>
+        ) : filtered.length > 0 ? (
           filtered.map((msg) => <MessageCard key={msg.id} msg={msg} />)
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">

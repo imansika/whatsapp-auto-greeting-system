@@ -14,10 +14,12 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Create greetings table (for storing greeting messages)
-CREATE TABLE IF NOT EXISTS greetings (
+CREATE TABLE IF NOT EXISTS greeting_messages (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
-  message TEXT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  trigger_keyword TEXT,
+  reply_message TEXT NOT NULL,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -45,6 +47,15 @@ CREATE TABLE IF NOT EXISTS whatsapp_sessions (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY unique_user_session (user_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE message_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    sender_number VARCHAR(20),
+    message_text TEXT,
+    direction ENUM('incoming','outgoing'),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- If the table already exists without the unique key, add it:

@@ -146,6 +146,77 @@ const createClient = (userId) => {
     console.log(`[WhatsApp][User ${userId}] Loading ${percent}% - ${message}`);
   });
 
+  c.on("message", async (message) => {
+
+  try {
+    const activeUserId = Number(userId);
+    if (!Number.isInteger(activeUserId) || activeUserId <= 0) {
+      console.error("[WhatsApp] Skipping message handling due to invalid user id:", userId);
+      return;
+    }
+
+    const sender = message.from;
+    const text = message.body.toLowerCase();
+
+    const isStatusOrBroadcast =
+      typeof sender === "string" &&
+      (sender === "status@broadcast" || sender.endsWith("@broadcast"));
+
+    if (isStatusOrBroadcast) {
+      return;
+    }
+
+    console.log(`[WhatsApp][User ${activeUserId}] Message received:`, sender, text);
+
+    // Check greeting trigger first — only log messages that get auto-replied
+    db.query(
+      "SELECT * FROM greeting_messages WHERE user_id = ? AND trigger_keyword = ? AND is_active = 1",
+      [activeUserId, text],
+      async (err, results) => {
+
+        if (err) {
+          console.error("DB error:", err);
+          return;
+        }
+
+        if (results.length > 0) {
+          const reply = results[0].reply_message;
+
+          // Store incoming message (only when a match is found)
+          db.query(
+            "INSERT INTO message_logs (user_id, sender_number, message_text, direction) VALUES (?, ?, ?, ?)",
+            [activeUserId, sender, text, "incoming"],
+            async (inErr) => {
+              if (inErr) {
+                console.error("Error saving incoming message:", inErr);
+              }
+
+              // Send auto reply
+              await message.reply(reply);
+              console.log("Auto reply sent:", reply);
+
+              // Store outgoing message
+              db.query(
+                "INSERT INTO message_logs (user_id, sender_number, message_text, direction) VALUES (?, ?, ?, ?)",
+                [activeUserId, sender, reply, "outgoing"],
+                (outErr) => {
+                  if (outErr) {
+                    console.error("Error saving outgoing message:", outErr);
+                  }
+                }
+              );
+            }
+          );
+        }
+
+      }
+    );
+
+  } catch (error) {
+    console.error("Auto reply error:", error);
+  }
+
+});
   c.on("authenticated", () => {
     console.log(`[WhatsApp][User ${userId}] Authenticated - session saved for next start.`);
     session.latestQr = null;
