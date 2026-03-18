@@ -23,5 +23,8 @@ ALTER TABLE greeting_messages MODIFY COLUMN trigger_keyword TEXT;
 ALTER TABLE greeting_messages MODIFY COLUMN reply_message TEXT NOT NULL;
 ALTER TABLE greeting_messages ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 
+-- Ensure message_logs can store sender display name without requiring a contacts table
+ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255) AFTER sender_number;
+
 -- Display table structure to verify
 DESCRIBE users;

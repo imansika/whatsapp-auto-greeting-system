@@ -18,14 +18,31 @@ const listMessageLogs = async (req, res) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const rows = await runQuery(
-      `SELECT id, user_id, sender_number, message_text, direction, created_at
-       FROM message_logs
-       WHERE user_id = ?
-       ORDER BY created_at DESC, id DESC
-       LIMIT 500`,
-      [userId],
-    );
+    let rows;
+
+    try {
+      rows = await runQuery(
+        `SELECT id, user_id, sender_number, sender_name, message_text, direction, created_at
+         FROM message_logs
+         WHERE user_id = ?
+         ORDER BY created_at DESC, id DESC
+         LIMIT 500`,
+        [userId],
+      );
+    } catch (error) {
+      if (error?.code !== "ER_BAD_FIELD_ERROR") {
+        throw error;
+      }
+
+      rows = await runQuery(
+        `SELECT id, user_id, sender_number, NULL AS sender_name, message_text, direction, created_at
+         FROM message_logs
+         WHERE user_id = ?
+         ORDER BY created_at DESC, id DESC
+         LIMIT 500`,
+        [userId],
+      );
+    }
 
     return res.json(rows);
   } catch (error) {

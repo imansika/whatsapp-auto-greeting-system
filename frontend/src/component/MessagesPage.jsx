@@ -30,14 +30,21 @@ const colorFromPhone = (phone) => {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 };
 
-const displayNameFromPhone = (phone) => {
-  const digits = String(phone || "").replace(/\D/g, "");
-  const suffix = digits.slice(-4) || "User";
-  return `Contact ${suffix}`;
+const normalizeWhatsAppNumber = (value) =>
+  String(value || "")
+    .replace(/@(c|g)\.us$/i, "")
+    .replace(/@s\.whatsapp\.net$/i, "");
+
+const displayNameFromPhone = (phone, senderName) => {
+  const safeSenderName = String(senderName || "").trim();
+  if (safeSenderName) {
+    return safeSenderName;
+  }
+  return "Unknown Number";
 };
 
 const initialsFromPhone = (phone) => {
-  const digits = String(phone || "").replace(/\D/g, "");
+  const digits = normalizeWhatsAppNumber(phone).replace(/\D/g, "");
   return (digits.slice(-2) || "U").toUpperCase();
 };
 
@@ -69,10 +76,11 @@ const buildMessageCards = (rows) => {
       const incoming = pendingQueue.shift();
 
       if (incoming) {
+        const cleanPhone = normalizeWhatsAppNumber(sender);
         cards.push({
           id: incoming.id,
-          name: displayNameFromPhone(sender),
-          phone: sender,
+          name: displayNameFromPhone(sender, incoming.sender_name),
+          phone: cleanPhone,
           initials: initialsFromPhone(sender),
           color: colorFromPhone(sender),
           time: toRelativeTime(incoming.created_at),
@@ -88,10 +96,11 @@ const buildMessageCards = (rows) => {
 
   pendingBySender.forEach((pendingRows, sender) => {
     pendingRows.forEach((incoming) => {
+      const cleanPhone = normalizeWhatsAppNumber(sender);
       cards.push({
         id: incoming.id,
-        name: displayNameFromPhone(sender),
-        phone: sender,
+        name: displayNameFromPhone(sender, incoming.sender_name),
+        phone: cleanPhone,
         initials: initialsFromPhone(sender),
         color: colorFromPhone(sender),
         time: toRelativeTime(incoming.created_at),

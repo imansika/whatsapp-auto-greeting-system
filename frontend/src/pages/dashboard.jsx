@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { createTheme, ThemeProvider } from "@mui/material";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +6,7 @@ import authService from "../services/authservice";
 import MessagesPage from "../component/MessagesPage";
 import GreetingMessagesPage from "../component/Greetingmessagespage";
 import SettingsPage from "../component/Settingspage";
+import messageLogService from "../services/messagelogservice";
 
 import {
   Dashboard as DashboardIcon,
@@ -21,6 +22,8 @@ import {
   PhoneAndroid as PhoneIcon,
   Info as InfoIcon,
   LinkOff as LinkOffIcon,
+  Notifications as NotificationsIcon,
+  Close as CloseIcon,
 } from "@mui/icons-material";
 
 // ── MUI theme ──────────────────────────────────────────────────────────────
@@ -114,7 +117,12 @@ const Sidebar = ({ active, setActive, user, onLogout }) => (
 );
 
 // ── Top bar ────────────────────────────────────────────────────────────────
-const TopBar = ({ connected, isConnecting }) => {
+const TopBar = ({
+  connected,
+  isConnecting,
+  onToggleNotifications,
+  unreadNotifications,
+}) => {
   const label = connected
     ? "Connected"
     : isConnecting
@@ -136,13 +144,101 @@ const TopBar = ({ connected, isConnecting }) => {
       <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
         WhatsApp Auto-Reply Dashboard
       </h1>
-      <div
-        className={`flex items-center gap-2 text-base font-semibold ${textClass}`}
-      >
-        <span className={`w-2 h-2 rounded-full ${dotClass}`} />
-        {label}
+      <div className="flex items-center gap-3">
+        <div
+          className={`flex items-center gap-2 text-base font-semibold ${textClass}`}
+        >
+          <span className={`w-2 h-2 rounded-full ${dotClass}`} />
+          {label}
+        </div>
+
+        <button
+          type="button"
+          onClick={onToggleNotifications}
+          aria-label="Open notifications"
+          className="relative inline-flex items-center justify-center p-1 text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          <NotificationsIcon style={{ fontSize: 22 }} />
+          {unreadNotifications > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 font-semibold text-center">
+              {unreadNotifications > 99 ? "99+" : unreadNotifications}
+            </span>
+          )}
+        </button>
       </div>
     </header>
+  );
+};
+
+const notificationTime = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Just now";
+  }
+  return date.toLocaleString();
+};
+
+const NotificationPanel = ({ open, onClose, notifications }) => {
+
+  return (
+    <>
+      {open && (
+        <button
+          type="button"
+          aria-label="Close notifications"
+          onClick={onClose}
+          className="fixed inset-0 bg-black/20 z-30"
+        />
+      )}
+
+      <aside
+        className={`fixed top-16 right-0 h-[calc(100vh-4rem)] w-full max-w-sm bg-white border-l border-gray-100 shadow-xl z-40 transform transition-transform duration-300 ${
+          open ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="h-full flex flex-col">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h3 className="text-lg font-bold text-gray-800">Notifications</h3>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close notification panel"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            >
+              <CloseIcon style={{ fontSize: 18 }} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+            {notifications.length > 0 ? (
+              notifications.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3"
+                >
+                  <p className="text-base font-semibold text-gray-800">
+                    {item.title}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">{item.body}</p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    {notificationTime(item.createdAt)}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-8 text-center">
+                <p className="text-base font-semibold text-gray-700">
+                  No notifications yet
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  New incoming messages will appear here.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </aside>
+    </>
   );
 };
 
@@ -488,6 +584,11 @@ export default function App() {
   const [active, setActive] = useState("qr");
   const [connected, setConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const hasNotificationBootstrap = useRef(false);
+  const lastSeenIncomingIdRef = useRef(0);
 
   const rawUser = authService.getCurrentUser();
   const displayName = rawUser?.username || "User";
@@ -504,6 +605,94 @@ export default function App() {
     authService.logout();
     navigate("/", { replace: true });
   };
+
+  const toggleNotifications = () => {
+    setIsNotificationsOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        setUnreadNotifications(0);
+      }
+      return next;
+    });
+  };
+
+  const closeNotifications = () => {
+    setIsNotificationsOpen(false);
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const normalizeWhatsAppNumber = (value) =>
+      String(value || "")
+        .replace(/@(c|g)\.us$/i, "")
+        .replace(/@s\.whatsapp\.net$/i, "");
+
+    const displayNameFromPhone = (phone, senderName) => {
+      const safeSenderName = String(senderName || "").trim();
+      if (safeSenderName) {
+        return safeSenderName;
+      }
+      return "Unknown Number";
+    };
+
+    const checkNewMessages = async () => {
+      try {
+        const rows = await messageLogService.list();
+        if (!mounted || !Array.isArray(rows)) return;
+
+        const incomingRows = rows
+          .filter((row) => row?.direction === "incoming")
+          .sort((a, b) => Number(a.id) - Number(b.id));
+
+        const latestIncomingId = incomingRows.length
+          ? Number(incomingRows[incomingRows.length - 1].id) || 0
+          : 0;
+
+        if (!hasNotificationBootstrap.current) {
+          hasNotificationBootstrap.current = true;
+          lastSeenIncomingIdRef.current = latestIncomingId;
+          return;
+        }
+
+        const newIncomingRows = incomingRows.filter(
+          (row) => Number(row.id) > lastSeenIncomingIdRef.current,
+        );
+
+        if (newIncomingRows.length > 0) {
+          const newNotifications = newIncomingRows
+            .map((row) => {
+              const sender = row.sender_number || "Unknown";
+              return {
+                id: `incoming-${row.id}`,
+                title: "New message received",
+                body: `You have received a new message from ${displayNameFromPhone(sender, row.sender_name)}.`,
+                createdAt: row.created_at || new Date().toISOString(),
+              };
+            })
+            .reverse();
+
+          setNotifications((prev) => [...newNotifications, ...prev].slice(0, 100));
+
+          if (!isNotificationsOpen) {
+            setUnreadNotifications((prev) => prev + newIncomingRows.length);
+          }
+        }
+
+        lastSeenIncomingIdRef.current = latestIncomingId;
+      } catch (_) {
+        // Keep notification polling silent on transient API/network failures
+      }
+    };
+
+    checkNewMessages();
+    const interval = setInterval(checkNewMessages, 5000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [isNotificationsOpen]);
 
   const renderPage = () => {
     switch (active) {
@@ -557,9 +746,20 @@ export default function App() {
         />
 
         <div className="flex-1 flex flex-col min-w-0">
-          <TopBar connected={connected} isConnecting={isConnecting} />
+          <TopBar
+            connected={connected}
+            isConnecting={isConnecting}
+            onToggleNotifications={toggleNotifications}
+            unreadNotifications={unreadNotifications}
+          />
           <main className="flex-1 p-6 overflow-auto">{renderPage()}</main>
         </div>
+
+        <NotificationPanel
+          open={isNotificationsOpen}
+          onClose={closeNotifications}
+          notifications={notifications}
+        />
       </div>
     </ThemeProvider>
   );

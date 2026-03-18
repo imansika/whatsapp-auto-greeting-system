@@ -157,6 +157,21 @@ const createClient = (userId) => {
 
     const sender = message.from;
     const text = message.body.toLowerCase();
+    let senderName = null;
+
+    try {
+      const contact = await message.getContact();
+      senderName =
+        contact?.name ||
+        contact?.pushname ||
+        contact?.shortName ||
+        message?._data?.notifyName ||
+        message?._data?.pushname ||
+        null;
+    } catch (contactError) {
+      senderName = message?._data?.notifyName || message?._data?.pushname || null;
+      console.warn("Unable to read WhatsApp contact name:", contactError?.message);
+    }
 
     const isStatusOrBroadcast =
       typeof sender === "string" &&
@@ -184,8 +199,8 @@ const createClient = (userId) => {
 
           // Store incoming message (only when a match is found)
           db.query(
-            "INSERT INTO message_logs (user_id, sender_number, message_text, direction) VALUES (?, ?, ?, ?)",
-            [activeUserId, sender, text, "incoming"],
+            "INSERT INTO message_logs (user_id, sender_number, sender_name, message_text, direction) VALUES (?, ?, ?, ?, ?)",
+            [activeUserId, sender, senderName, text, "incoming"],
             async (inErr) => {
               if (inErr) {
                 console.error("Error saving incoming message:", inErr);
@@ -197,8 +212,8 @@ const createClient = (userId) => {
 
               // Store outgoing message
               db.query(
-                "INSERT INTO message_logs (user_id, sender_number, message_text, direction) VALUES (?, ?, ?, ?)",
-                [activeUserId, sender, reply, "outgoing"],
+                "INSERT INTO message_logs (user_id, sender_number, sender_name, message_text, direction) VALUES (?, ?, ?, ?, ?)",
+                [activeUserId, sender, senderName, reply, "outgoing"],
                 (outErr) => {
                   if (outErr) {
                     console.error("Error saving outgoing message:", outErr);

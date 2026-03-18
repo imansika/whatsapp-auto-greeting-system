@@ -25,16 +25,6 @@ CREATE TABLE IF NOT EXISTS greeting_messages (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Create contacts table (for storing WhatsApp contacts)
-CREATE TABLE IF NOT EXISTS contacts (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  phone_number VARCHAR(20) NOT NULL,
-  name VARCHAR(255),
-  last_greeted TIMESTAMP NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
 
 -- Create WhatsApp session table
 CREATE TABLE IF NOT EXISTS whatsapp_sessions (
@@ -49,10 +39,11 @@ CREATE TABLE IF NOT EXISTS whatsapp_sessions (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE TABLE message_logs (
+CREATE TABLE IF NOT EXISTS message_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT,
     sender_number VARCHAR(20),
+  sender_name VARCHAR(255),
     message_text TEXT,
     direction ENUM('incoming','outgoing'),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
