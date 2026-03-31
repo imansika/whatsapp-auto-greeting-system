@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:3000/api/greetings";
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/$/, "");
+const API_URL = `${API_BASE_URL}/api/greetings`;
 
 const getAuthHeaders = () => {
   const token = sessionStorage.getItem("token") || localStorage.getItem("token");
