@@ -1,15 +1,15 @@
 {
   "name": "whatsapp-auto-greeting-system",
   "version": "1.0.0",
-  "description": "The WhatsApp Automated Greeting System is a full-stack web application designed to automate initial greeting responses to incoming WhatsApp messages. The system reduces manual effort and improves response efficiency by automatically detecting new messages and sending predefined greetings.",
-  "main": "index.js",
+  "description": "...",
+  "main": "backend/server.js",
   "scripts": {
     "start": "node backend/server.js",
     "dev": "nodemon --ignore .wwebjs_auth/** backend/server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",

@@ -8,7 +8,7 @@ const db = require("../db");
 const QRCode = require("qrcode");
 
 const INIT_RETRY_DELAY_MS = 8000;
-const AUTH_DATA_PATH = path.resolve(__dirname, "../../.wwebjs_auth");
+const AUTH_DATA_PATH = path.resolve("./.wwebjs_auth");
 const userSessions = new Map();
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
