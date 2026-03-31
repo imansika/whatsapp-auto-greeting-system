@@ -2,6 +2,25 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:3000/api/auth';
 
+const readStorageValue = (key) =>
+  sessionStorage.getItem(key) || localStorage.getItem(key);
+
+const setAuthState = (token, user) => {
+  sessionStorage.setItem('token', token);
+  sessionStorage.setItem('user', JSON.stringify(user));
+
+  // Keep auth isolated per browser tab. Legacy values are cleaned up.
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+};
+
+const clearAuthState = () => {
+  sessionStorage.removeItem('token');
+  sessionStorage.removeItem('user');
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+};
+
 const parseJwtPayload = (token) => {
   try {
     const base64Payload = token.split('.')[1];
@@ -38,7 +57,7 @@ const apiClient = axios.create({
 
 // Add token to requests if it exists
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = readStorageValue('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -56,10 +75,9 @@ const authService = {
         phone,
         password,
       });
-      // Store token in localStorage if provided
+      // Store token in sessionStorage to avoid cross-tab user collisions
       if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+        setAuthState(response.data.token, response.data.user);
       }
       return response.data;
     } catch (error) {
@@ -74,10 +92,9 @@ const authService = {
         email,
         password,
       });
-      // Store token in localStorage
+      // Store token in sessionStorage to avoid cross-tab user collisions
       if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+        setAuthState(response.data.token, response.data.user);
       }
       return response.data;
     } catch (error) {
@@ -87,24 +104,22 @@ const authService = {
 
   // Logout user
   logout: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    clearAuthState();
   },
 
   // Get current user
   getCurrentUser: () => {
-    const user = localStorage.getItem('user');
+    const user = readStorageValue('user');
     return user ? JSON.parse(user) : null;
   },
 
   // Check if user is authenticated
   isAuthenticated: () => {
-    const token = localStorage.getItem('token');
+    const token = readStorageValue('token');
     const valid = isTokenStillValid(token);
 
     if (!valid) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      clearAuthState();
     }
 
     return valid;

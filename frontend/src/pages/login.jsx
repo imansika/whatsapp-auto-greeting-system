@@ -453,7 +453,7 @@ export default function App() {
             maxWidth: 900,
             bgcolor: "white",
             borderRadius: 4,
-            boxShadow: "0 25px 60px rgba(37,211,102,0.12)",
+            boxShadow: "0 0 30px rgba(37,211,102,0.15)",
             display: "flex",
             overflow: "hidden",
             minHeight: 600,
@@ -471,7 +471,7 @@ export default function App() {
               justifyContent: "space-between",
               p: { xs: 3, lg: 6 },
               overflowY: "auto",
-              backgroundColor: "#ECE5DD",
+              backgroundColor: "white",
             }}
           >
             <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>

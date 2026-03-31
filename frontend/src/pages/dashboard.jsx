@@ -247,7 +247,7 @@ const WHATSAPP_QR_BASE_URL = "http://localhost:3000";
 const WHATSAPP_LOGOUT_API_URL = "http://localhost:3000/api/whatsapp/logout";
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem("token");
+  const token = sessionStorage.getItem("token") || localStorage.getItem("token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 

@@ -18,10 +18,11 @@ CREATE TABLE IF NOT EXISTS greeting_messages (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   title VARCHAR(255) NOT NULL,
-  trigger_keyword TEXT,
+  trigger_keyword VARCHAR(255) NOT NULL,
   reply_message TEXT NOT NULL,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_user_trigger_keyword (user_id, trigger_keyword),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

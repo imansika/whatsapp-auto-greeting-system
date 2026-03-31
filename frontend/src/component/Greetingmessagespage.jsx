@@ -37,7 +37,7 @@ const KeywordTag = ({ label, onRemove }) => (
 );
 
 // ── Modal (Add / Edit) ─────────────────────────────────────────────────────
-const GreetingModal = ({ greeting, onSave, onClose, saving }) => {
+const GreetingModal = ({ greeting, onSave, onClose, saving, error }) => {
   const [title, setTitle] = useState(greeting?.title || "");
   const [message, setMessage] = useState(greeting?.message || "");
   const [keywords, setKeywords] = useState(greeting?.keywords || []);
@@ -75,6 +75,13 @@ const GreetingModal = ({ greeting, onSave, onClose, saving }) => {
             <CloseIcon style={{ fontSize: 20, color: "#6b7280" }} />
           </button>
         </div>
+
+        {/* Error Alert */}
+        {error && (
+          <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {error}
+          </div>
+        )}
 
         {/* Title */}
         <div className="flex flex-col gap-1.5">
@@ -219,6 +226,7 @@ export default function GreetingMessagesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [modalError, setModalError] = useState("");
 
   useEffect(() => {
     const loadGreetings = async () => {
@@ -239,13 +247,14 @@ export default function GreetingMessagesPage() {
     loadGreetings();
   }, []);
 
-  const openAdd = () => { setEditTarget(null); setModalOpen(true); };
-  const openEdit = (g) => { setEditTarget(g); setModalOpen(true); };
-  const closeModal = () => { setModalOpen(false); setEditTarget(null); };
+  const openAdd = () => { setEditTarget(null); setModalOpen(true); setModalError(""); };
+  const openEdit = (g) => { setEditTarget(g); setModalOpen(true); setModalError(""); };
+  const closeModal = () => { setModalOpen(false); setEditTarget(null); setModalError(""); };
 
   const handleSave = async (data) => {
     try {
       setSaving(true);
+      setModalError("");
       setError("");
 
       if (editTarget) {
@@ -266,9 +275,8 @@ export default function GreetingMessagesPage() {
 
       closeModal();
     } catch (err) {
-      setError(
-        err?.response?.data?.error || "Failed to save greeting message.",
-      );
+      const errorMsg = err?.response?.data?.error || "Failed to save greeting message.";
+      setModalError(errorMsg);
     } finally {
       setSaving(false);
     }
@@ -376,6 +384,7 @@ export default function GreetingMessagesPage() {
           onSave={handleSave}
           onClose={closeModal}
           saving={saving}
+          error={modalError}
         />
       )}
     </div>

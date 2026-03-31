@@ -30,16 +30,27 @@ const getUserSessionState = (userId) => {
       isInitializing: false,
       retryTimeout: null,
       activeClient: null,
+      initPromise: null,
     });
   }
   return userSessions.get(normalizedUserId);
 };
 
+const escapeForPowerShellSingleQuotedString = (value) =>
+  String(value ?? "").replace(/'/g, "''");
+
+const escapeForRegex = (value) =>
+  String(value ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const killStaleChrome = (userId) => {
   const sessionKey = getSessionKeyForUser(userId);
+  const escapedSessionKey = escapeForRegex(sessionKey);
+  const pattern = `${escapedSessionKey}([\\\\/]|$)`;
+  const psPattern = escapeForPowerShellSingleQuotedString(pattern);
+
   try {
     execSync(
-      `powershell -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'chrome.exe' -and $_.CommandLine -match '${sessionKey}' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"`,
+      `powershell -Command "$pattern = '${psPattern}'; Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'chrome.exe' -and $_.CommandLine -match $pattern } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"`,
       { timeout: 10000, stdio: "pipe" },
     );
     console.log(`[WhatsApp][User ${userId}] Killed stale chrome processes (if any).`);
@@ -348,39 +359,51 @@ const scheduleReinit = (userId, delay = INIT_RETRY_DELAY_MS) => {
 
 const initializeClient = async (userId) => {
   const session = getUserSessionState(userId);
-  if (session.isInitializing) return;
-  session.isInitializing = true;
-
-  if (session.activeClient) {
-    try {
-      await session.activeClient.destroy();
-    } catch (_) {}
-    session.activeClient = null;
+  if (session.initPromise) {
+    return session.initPromise;
   }
 
-  killStaleChrome(userId);
-  cleanupSessionLocks(userId);
+  session.initPromise = (async () => {
+    if (session.isInitializing) return;
+    session.isInitializing = true;
 
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-
-  try {
-    session.activeClient = createClient(userId);
-    await session.activeClient.initialize();
-  } catch (error) {
-    console.error(`[WhatsApp][User ${userId}] Initialization failed:`, error.message);
     if (session.activeClient) {
       try {
         await session.activeClient.destroy();
       } catch (_) {}
       session.activeClient = null;
     }
-    session.isInitializing = false;
-    session.isReady = false;
-    session.latestQr = null;
-    session.latestQrText = null;
-    session.qrToken = null;
-    session.lastUpdated = new Date().toISOString();
-    scheduleReinit(userId);
+
+    killStaleChrome(userId);
+    cleanupSessionLocks(userId);
+
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    try {
+      session.activeClient = createClient(userId);
+      await session.activeClient.initialize();
+    } catch (error) {
+      console.error(`[WhatsApp][User ${userId}] Initialization failed:`, error.message);
+      if (session.activeClient) {
+        try {
+          await session.activeClient.destroy();
+        } catch (_) {}
+        session.activeClient = null;
+      }
+      session.isInitializing = false;
+      session.isReady = false;
+      session.latestQr = null;
+      session.latestQrText = null;
+      session.qrToken = null;
+      session.lastUpdated = new Date().toISOString();
+      scheduleReinit(userId);
+    }
+  })();
+
+  try {
+    await session.initPromise;
+  } finally {
+    session.initPromise = null;
   }
 };
 

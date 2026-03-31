@@ -38,6 +38,51 @@ const mapGreetingRow = (row) => ({
   createdAt: row.created_at,
 });
 
+const findConflictingKeyword = async (userId, keywords, excludeGreetingId = null) => {
+  if (!Array.isArray(keywords) || !keywords.length) {
+    return null;
+  }
+
+  const normalizedSet = new Set(
+    keywords
+      .map((keyword) => String(keyword).trim().toLowerCase())
+      .filter(Boolean),
+  );
+
+  if (!normalizedSet.size) {
+    return null;
+  }
+
+  const params = [userId];
+  let sql = `SELECT trigger_keyword
+             FROM greeting_messages
+             WHERE user_id = ?`;
+
+  if (excludeGreetingId !== null) {
+    sql += " AND id <> ?";
+    params.push(excludeGreetingId);
+  }
+
+  const rows = await runQuery(sql, params);
+
+  for (const row of rows) {
+    const existingKeywords = parseKeywords(row.trigger_keyword).map((keyword) =>
+      keyword.toLowerCase(),
+    );
+
+    const duplicate = existingKeywords.find((keyword) => normalizedSet.has(keyword));
+    if (duplicate) {
+      return duplicate;
+    }
+  }
+
+  return null;
+};
+
+const isDuplicateKeywordError = (error) =>
+  error?.code === "ER_DUP_ENTRY" &&
+  String(error?.sqlMessage || "").includes("unique_user_trigger_keyword");
+
 const getGreetingById = async (userId, greetingId) => {
   const rows = await runQuery(
     `SELECT id, title, trigger_keyword, reply_message, is_active, created_at
@@ -89,6 +134,13 @@ const createGreeting = async (req, res) => {
       return res.status(400).json({ error: validationError });
     }
 
+    const conflictingKeyword = await findConflictingKeyword(userId, keywords);
+    if (conflictingKeyword) {
+      return res.status(409).json({
+        error: `Trigger keyword '${conflictingKeyword}' already exists for this user`,
+      });
+    }
+
     const result = await runQuery(
       `INSERT INTO greeting_messages (user_id, title, trigger_keyword, reply_message, is_active)
        VALUES (?, ?, ?, ?, ?)`,
@@ -104,6 +156,12 @@ const createGreeting = async (req, res) => {
     const greeting = await getGreetingById(userId, result.insertId);
     return res.status(201).json(greeting);
   } catch (error) {
+    if (isDuplicateKeywordError(error)) {
+      return res.status(409).json({
+        error: "Trigger keyword already exists for this user",
+      });
+    }
+
     return res.status(500).json({ error: "Failed to create greeting message" });
   }
 };
@@ -117,6 +175,13 @@ const updateGreeting = async (req, res) => {
     const validationError = validateGreetingPayload({ title, message });
     if (validationError) {
       return res.status(400).json({ error: validationError });
+    }
+
+    const conflictingKeyword = await findConflictingKeyword(userId, keywords, greetingId);
+    if (conflictingKeyword) {
+      return res.status(409).json({
+        error: `Trigger keyword '${conflictingKeyword}' already exists for this user`,
+      });
     }
 
     const result = await runQuery(
@@ -140,6 +205,12 @@ const updateGreeting = async (req, res) => {
     const greeting = await getGreetingById(userId, greetingId);
     return res.json(greeting);
   } catch (error) {
+    if (isDuplicateKeywordError(error)) {
+      return res.status(409).json({
+        error: "Trigger keyword already exists for this user",
+      });
+    }
+
     return res.status(500).json({ error: "Failed to update greeting message" });
   }
 };
