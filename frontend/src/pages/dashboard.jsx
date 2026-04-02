@@ -9,11 +9,9 @@ import SettingsPage from "../component/Settingspage";
 import messageLogService from "../services/messagelogservice";
 
 import {
-  Dashboard as DashboardIcon,
   Message as MessageIcon,
   Chat as ChatIcon,
   QrCode as QrCodeIcon,
-  ListAlt as LogsIcon,
   Settings as SettingsIcon,
   Logout as LogoutIcon,
   Refresh as RefreshIcon,
@@ -623,11 +621,6 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true;
-
-    const normalizeWhatsAppNumber = (value) =>
-      String(value || "")
-        .replace(/@(c|g)\.us$/i, "")
-        .replace(/@s\.whatsapp\.net$/i, "");
 
     const displayNameFromPhone = (phone, senderName) => {
       const safeSenderName = String(senderName || "").trim();

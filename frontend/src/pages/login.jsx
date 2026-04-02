@@ -163,7 +163,7 @@ const LoginPage = ({ onSwitch }) => {
     setSuccess("");
 
     try {
-      const response = await authService.login(username, password);
+      await authService.login(username, password);
       setSuccess("Login successful! Redirecting...");
       // Clear form
       setUsername("");
@@ -293,7 +293,7 @@ const RegisterPage = ({ onSwitch }) => {
     setSuccess("");
 
     try {
-      const response = await authService.register(username, email, phone, password);
+      await authService.register(username, email, phone, password);
       setSuccess("Account created successfully! Redirecting to dashboard...");
       // Clear form
       setUsername("");
