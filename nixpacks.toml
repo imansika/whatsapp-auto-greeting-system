@@ -12,15 +12,18 @@ aptPkgs = [
   "libdbus-1-3",
   "libdrm2",
   "libexpat1",
+  "libfreetype6",
   "libfontconfig1",
   "libgbm1",
   "libgcc-s1",
   "libglib2.0-0",
   "libgtk-3-0",
+  "libharfbuzz0b",
   "libnspr4",
   "libnss3",
   "libpango-1.0-0",
   "libpangocairo-1.0-0",
+  "libpixman-1-0",
   "libstdc++6",
   "libx11-6",
   "libx11-xcb1",
@@ -40,3 +43,4 @@ aptPkgs = [
 
 [variables]
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "false"
+LD_LIBRARY_PATH = "/usr/lib/x86_64-linux-gnu:/usr/lib/aarch64-linux-gnu:/usr/lib"
