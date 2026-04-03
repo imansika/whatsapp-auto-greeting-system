@@ -16,6 +16,13 @@ const PORT = process.env.PORT || 5000;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 const normalizeOrigin = (value) => String(value || '').trim().replace(/\/+$/, '');
+const getHostname = (value) => {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch (_) {
+    return '';
+  }
+};
 
 const parsedAllowedOrigins = CORS_ORIGIN === '*'
   ? '*'
@@ -30,10 +37,24 @@ const isOriginAllowed = (requestOrigin) => {
   }
 
   const normalizedRequestOrigin = normalizeOrigin(requestOrigin);
+  const requestHostname = getHostname(normalizedRequestOrigin);
 
   return parsedAllowedOrigins.some((entry) => {
     if (entry === normalizedRequestOrigin) {
       return true;
+    }
+
+    if (requestHostname) {
+      if (requestHostname === 'localhost' || requestHostname === '127.0.0.1') {
+        return entry.includes('localhost') || entry.includes('127.0.0.1');
+      }
+
+      // Allow all Vercel preview and production subdomains by default.
+      if (requestHostname.endsWith('.vercel.app')) {
+        if (entry === '*' || entry.includes('vercel.app')) {
+          return true;
+        }
+      }
     }
 
     // Support wildcard entries such as https://*.vercel.app
