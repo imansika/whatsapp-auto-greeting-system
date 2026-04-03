@@ -113,6 +113,7 @@ const removeAuthDataWithRetry = async (userId) => {
 const createClient = (userId) => {
   const session = getUserSessionState(userId);
   const clientId = getClientIdForUser(userId);
+  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
 
   const c = new Client({
     authStrategy: new LocalAuth({
@@ -121,11 +122,14 @@ const createClient = (userId) => {
     }),
     puppeteer: {
       headless: true,
+      executablePath,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
+        "--no-zygote",
+        "--single-process",
       ],
     },
   });
