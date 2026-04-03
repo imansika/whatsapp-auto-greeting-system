@@ -14,11 +14,42 @@ const app = express();
 
 const PORT = process.env.PORT || 5000;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
-const allowedOrigins = CORS_ORIGIN === '*'
-  ? '*'
-  : CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean);
 
-app.use(cors({
+const normalizeOrigin = (value) => String(value || '').trim().replace(/\/+$/, '');
+
+const parsedAllowedOrigins = CORS_ORIGIN === '*'
+  ? '*'
+  : CORS_ORIGIN
+      .split(',')
+      .map((origin) => normalizeOrigin(origin))
+      .filter(Boolean);
+
+const isOriginAllowed = (requestOrigin) => {
+  if (parsedAllowedOrigins === '*') {
+    return true;
+  }
+
+  const normalizedRequestOrigin = normalizeOrigin(requestOrigin);
+
+  return parsedAllowedOrigins.some((entry) => {
+    if (entry === normalizedRequestOrigin) {
+      return true;
+    }
+
+    // Support wildcard entries such as https://*.vercel.app
+    if (entry.includes('*')) {
+      const escaped = entry
+        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*/g, '.*');
+      const wildcardRegex = new RegExp(`^${escaped}$`, 'i');
+      return wildcardRegex.test(normalizedRequestOrigin);
+    }
+
+    return false;
+  });
+};
+
+const corsOptions = {
   origin: (origin, callback) => {
     // Allow server-to-server and health-check requests without an Origin header.
     if (!origin) {
@@ -26,14 +57,18 @@ app.use(cors({
       return;
     }
 
-    if (allowedOrigins === '*' || allowedOrigins.includes(origin)) {
+    if (isOriginAllowed(origin)) {
       callback(null, true);
       return;
     }
 
     callback(new Error('Not allowed by CORS'));
   },
-}));
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 
