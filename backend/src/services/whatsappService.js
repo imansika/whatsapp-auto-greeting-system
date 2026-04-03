@@ -114,7 +114,7 @@ const removeAuthDataWithRetry = async (userId) => {
 const createClient = (userId) => {
   const session = getUserSessionState(userId);
   const clientId = getClientIdForUser(userId);
-  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
 
   const c = new Client({
     authStrategy: new LocalAuth({

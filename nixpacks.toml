@@ -19,30 +19,17 @@ aptPkgs = [
   "libgbm1",
   "libgcc-s1",
   "libglib2.0-0",
-  "libgtk-3-0",
-  "libharfbuzz0b",
-  "libnspr4",
+  "chromium",
   "libnss3",
-  "libpango-1.0-0",
-  "libpangocairo-1.0-0",
-  "libpixman-1-0",
-  "libstdc++6",
-  "libx11-6",
+  "libatk-bridge2.0-0",
   "libx11-xcb1",
   "libxcb1",
   "libxcomposite1",
   "libxdamage1",
-  "libxext6",
-  "libxfixes3",
-  "libxkbcommon0",
   "libxrandr2",
-  "libxrender1",
-  "libxshmfence1",
-  "libxss1",
-  "libxtst6",
-  "xdg-utils"
+  "libgbm1",
+  "libasound2"
 ]
 
 [variables]
-PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "false"
-LD_LIBRARY_PATH = "/usr/lib/x86_64-linux-gnu:/usr/lib/aarch64-linux-gnu:/usr/lib"
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
