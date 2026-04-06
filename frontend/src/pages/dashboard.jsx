@@ -54,13 +54,13 @@ const navItems = [
 
 // ── Sidebar ────────────────────────────────────────────────────────────────
 const Sidebar = ({ active, setActive, user, onLogout }) => (
-  <aside className="flex flex-col w-96 min-h-screen bg-white border-r border-gray-100 shadow-sm flex-shrink-0">
+  <aside className="flex flex-col w-80 min-h-screen bg-white border-r border-gray-100 shadow-sm flex-shrink-0">
     {/* Brand */}
     <div className="flex items-center gap-2 px-4 py-4 bg-[#25D366]">
       <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
         <ChatIcon style={{ color: "#fff", fontSize: 22 }} />
       </div>
-      <span className="text-white font-bold text-lg tracking-wide">
+      <span className="text-white font-bold text-base tracking-wide">
         WhatsApp Greeting System
       </span>
     </div>
@@ -73,10 +73,10 @@ const Sidebar = ({ active, setActive, user, onLogout }) => (
         </span>
       </div>
       <div className="min-w-0">
-        <p className="text-base font-semibold text-gray-800 truncate">
+        <p className="text-sm font-semibold text-gray-800 truncate">
           {user.name}
         </p>
-        <p className="text-sm text-gray-400 truncate">{user.email}</p>
+        <p className="text-xs text-gray-400 truncate">{user.email}</p>
       </div>
     </div>
 
@@ -86,7 +86,7 @@ const Sidebar = ({ active, setActive, user, onLogout }) => (
         <button
           key={item.id}
           onClick={() => setActive(item.id)}
-          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-base font-medium transition-all w-full text-left
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all w-full text-left
             ${
               active === item.id
                 ? "bg-[#25D366] text-white shadow-md shadow-[#25D366]/25"
@@ -105,7 +105,7 @@ const Sidebar = ({ active, setActive, user, onLogout }) => (
     <div className="px-3 pb-5">
       <button
         onClick={onLogout}
-        className="flex items-center gap-3 px-3 py-3 rounded-xl text-base font-medium text-red-500 hover:bg-red-50 transition-all w-full"
+        className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all w-full"
       >
         <LogoutIcon fontSize="small" />
         Logout
@@ -139,12 +139,12 @@ const TopBar = ({
 
   return (
     <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-8 flex-shrink-0 shadow-sm">
-      <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
+      <h1 className="text-xl font-bold text-gray-800 tracking-tight">
         WhatsApp Auto-Reply Dashboard
       </h1>
       <div className="flex items-center gap-3">
         <div
-          className={`flex items-center gap-2 text-base font-semibold ${textClass}`}
+          className={`flex items-center gap-2 text-sm font-semibold ${textClass}`}
         >
           <span className={`w-2 h-2 rounded-full ${dotClass}`} />
           {label}
@@ -254,6 +254,7 @@ const getAuthHeaders = () => {
 const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
   const [qrImage, setQrImage] = useState(null);
   const [qrLoading, setQrLoading] = useState(true);
+  const [refreshingQr, setRefreshingQr] = useState(false);
   const [qrError, setQrError] = useState("");
   // const [qrUrl, setQrUrl] = useState(null);
   const [whatsappNumber, setWhatsappNumber] = useState(null);
@@ -274,11 +275,12 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
 
       const isConnectedNow = Boolean(response.data.connected);
       const hasQrNow = Boolean(response.data.hasQr);
+      const qrUrlWithBypass = response.data.qrUrl
+        ? `${WHATSAPP_QR_BASE_URL}${response.data.qrUrl}${response.data.qrUrl.includes("?") ? "&" : "?"}t=${Date.now()}`
+        : null;
       const nextQrImage =
         response.data.qrImage ||
-        (response.data.qrUrl
-          ? `${WHATSAPP_QR_BASE_URL}${response.data.qrUrl}`
-          : null);
+        qrUrlWithBypass;
 
       setConnected(isConnectedNow);
       setIsConnecting(Boolean(response.data.isConnecting));
@@ -304,6 +306,15 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
       setQrLoading(false);
     }
   }, [setConnected, setIsConnecting]);
+
+  const refreshQrCode = async () => {
+    if (refreshingQr) return;
+
+    setRefreshingQr(true);
+    setQrLoading(true);
+    await fetchWhatsAppStatus();
+    setRefreshingQr(false);
+  };
 
   const logoutWhatsApp = async () => {
     if (logoutLoading) return;
@@ -387,10 +398,10 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
     <div className="flex flex-col gap-5">
       {/* Heading */}
       <div>
-        <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+        <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
           WhatsApp Connection
         </h2>
-        <p className="text-base text-gray-500 mt-0.5">
+        <p className="text-sm text-gray-500 mt-0.5">
           Scan the QR code to link your WhatsApp account
         </p>
       </div>
@@ -417,7 +428,7 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
         )}
         <div>
           <p
-            className={`text-base font-semibold ${
+            className={`text-sm font-semibold ${
               connected
                 ? "text-[#16a34a]"
                 : isConnecting
@@ -431,7 +442,7 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
                 ? "Connecting to WhatsApp…"
                 : "Not Connected"}
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-xs text-gray-500">
             {connected && whatsappNumber
               ? `Linked to +${whatsappNumber}${lastConnected ? ` · Last synced ${new Date(lastConnected).toLocaleString()}` : ""}`
               : connected
@@ -448,22 +459,27 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
         {/* QR card */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7 flex flex-col items-center gap-4">
           <div className="flex items-center justify-between w-full">
-            <h3 className="text-lg font-bold text-gray-800">QR Code</h3>
+            <h3 className="text-base font-bold text-gray-800">QR Code</h3>
             <button
-              onClick={fetchWhatsAppStatus}
-              className="flex items-center gap-1.5 text-sm text-[#25D366] font-semibold hover:underline"
+              type="button"
+              onClick={refreshQrCode}
+              disabled={refreshingQr}
+              className="flex items-center gap-1.5 text-xs text-[#25D366] font-semibold hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <RefreshIcon style={{ fontSize: 18 }} />
-              Refresh
+              <RefreshIcon
+                style={{ fontSize: 18 }}
+                className={refreshingQr ? "animate-spin" : ""}
+              />
+              {refreshingQr ? "Refreshing..." : "Refresh"}
             </button>
           </div>
 
           <div className="p-4 rounded-xl border-2 border-gray-100 bg-white shadow-inner">
             {qrLoading && (
-              <p className="text-sm text-gray-500">Loading live QR code...</p>
+              <p className="text-xs text-gray-500">Loading live QR code...</p>
             )}
             {!qrLoading && qrError && (
-              <p className="text-sm text-red-500">{qrError}</p>
+              <p className="text-xs text-red-500">{qrError}</p>
             )}
             {!qrLoading && !qrError && qrImage && (
               <div className="flex flex-col items-center gap-3">
@@ -473,32 +489,24 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
                   alt="WhatsApp QR"
                   className="w-[320px] h-[320px]"
                 />
-                <a
-                  href={qrImage}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-[#25D366] font-semibold hover:underline"
-                >
-                  Open full-size QR in new tab
-                </a>
               </div>
             )}
             {connected && (
               <div className="flex flex-col items-center gap-3">
-                <p className="text-sm text-green-600 font-semibold">
+                <p className="text-xs text-green-600 font-semibold">
                   WhatsApp connected successfully
                 </p>
                 <button
                   type="button"
                   onClick={logoutWhatsApp}
                   disabled={logoutLoading}
-                  className="inline-flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 border border-red-200 transition-colors hover:bg-red-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 border border-red-200 transition-colors hover:bg-red-100 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <LogoutIcon style={{ fontSize: 18 }} />
                   {logoutLoading ? "Logging out..." : "Logout from WhatsApp"}
                 </button>
                 {logoutNotice && (
-                  <p className="text-xs text-gray-500 text-center max-w-xs">
+                  <p className="text-[11px] text-gray-500 text-center max-w-xs">
                     {logoutNotice}
                   </p>
                 )}
@@ -506,7 +514,7 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
             )}
 
             {!connected && !qrImage && !qrError && (
-              <p className="text-sm text-gray-500">
+              <p className="text-xs text-gray-500">
                 {isConnecting
                   ? "Waiting for a new WhatsApp QR code..."
                   : "WhatsApp is not connected yet. A new QR code will appear here automatically."}
@@ -514,14 +522,14 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
             )}
           </div>
 
-          <p className="text-sm text-gray-400">
+          <p className="text-xs text-gray-400">
             Scan this live QR code with your WhatsApp mobile app
           </p>
         </div>
 
         {/* How to connect */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7 flex flex-col gap-4">
-          <h3 className="text-lg font-bold text-gray-800">How to Connect</h3>
+          <h3 className="text-base font-bold text-gray-800">How to Connect</h3>
 
           <div className="flex flex-col gap-4">
             {steps.map((step) => (
@@ -532,10 +540,10 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
                   </span>
                 </div>
                 <div>
-                  <p className="text-base font-semibold text-gray-800">
+                  <p className="text-sm font-semibold text-gray-800">
                     {step.title}
                   </p>
-                  <p className="text-sm text-gray-500 mt-0.5 leading-relaxed">
+                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
                     {step.desc}
                   </p>
                 </div>
@@ -549,10 +557,10 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
               style={{ color: "#3b82f6", fontSize: 22, marginTop: 2 }}
             />
             <div>
-              <p className="text-base font-semibold text-blue-700">
+              <p className="text-sm font-semibold text-blue-700">
                 Important Note
               </p>
-              <p className="text-sm text-blue-600 mt-0.5 leading-relaxed">
+              <p className="text-xs text-blue-600 mt-0.5 leading-relaxed">
                 Keep your phone connected to the internet. Your messages will
                 sync across all linked devices.
               </p>
@@ -592,6 +600,7 @@ export default function App() {
   const rawUser = authService.getCurrentUser();
   const displayName = rawUser?.username || "User";
   const displayEmail = rawUser?.email || "No email";
+  const displayPhone = rawUser?.phone || "";
   const initials =
     displayName
       .split(" ")
@@ -711,6 +720,7 @@ export default function App() {
             user={{
               name: displayName,
               email: displayEmail,
+              phone: displayPhone,
               username: displayName,
             }}
           />
