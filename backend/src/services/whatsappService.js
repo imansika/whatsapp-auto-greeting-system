@@ -124,6 +124,7 @@ const createClient = (userId) => {
     }),
     puppeteer: {
       headless: true,
+      protocolTimeout: 180000,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
