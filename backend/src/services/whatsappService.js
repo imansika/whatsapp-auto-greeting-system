@@ -122,8 +122,7 @@ const createClient = (userId) => {
       dataPath: AUTH_DATA_PATH,
     }),
     puppeteer: {
-      headless: "new",
-      executablePath,
+      headless: true,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
