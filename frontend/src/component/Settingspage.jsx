@@ -59,7 +59,7 @@ const SaveButton = ({ onClick, label = "Save Changes" }) => (
 const ProfileTab = ({ user }) => {
   const [fullName, setFullName] = useState(user?.name || "John Doe");
   const [email, setEmail] = useState(user?.email || "john@example.com");
-  const [phone, setPhone] = useState("+1 234-567-8900");
+  const [phone, setPhone] = useState(user?.phone || "");
   const [username, setUsername] = useState(user?.username || "johndoe");
   const [saved, setSaved] = useState(false);
 
