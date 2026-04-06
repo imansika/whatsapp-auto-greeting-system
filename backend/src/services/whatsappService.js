@@ -32,6 +32,7 @@ const getUserSessionState = (userId) => {
       retryTimeout: null,
       activeClient: null,
       initPromise: null,
+      qrGeneratedTime: null,
     });
   }
   return userSessions.get(normalizedUserId);
@@ -127,7 +128,6 @@ const createClient = (userId) => {
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
-        "--single-process",
         "--no-zygote",
       ],
     },
@@ -148,6 +148,7 @@ const createClient = (userId) => {
     session.isReady = false;
     session.isInitializing = true;
     session.qrToken = Date.now();
+    session.qrGeneratedTime = Date.now();
     session.lastUpdated = new Date().toISOString();
 
     db.query(
@@ -318,6 +319,7 @@ const createClient = (userId) => {
     session.latestQr = null;
     session.latestQrText = null;
     session.qrToken = null;
+    session.qrGeneratedTime = null;
     session.lastUpdated = new Date().toISOString();
     scheduleReinit(userId);
   });
@@ -330,6 +332,7 @@ const createClient = (userId) => {
     session.latestQr = null;
     session.latestQrText = null;
     session.qrToken = null;
+    session.qrGeneratedTime = null;
     session.lastUpdated = new Date().toISOString();
 
     db.query(
@@ -458,6 +461,19 @@ const getStatus = (userId) => {
   const hasQr = Boolean(session.latestQr);
   const connected = Boolean(session.isReady && !hasQr);
   const isConnectingNow = Boolean(session.isInitializing && !connected && !hasQr);
+
+  const QR_TIMEOUT_MS = 3 * 60 * 1000;
+  if (hasQr && session.qrGeneratedTime) {
+    const qrAgeMs = Date.now() - session.qrGeneratedTime;
+    if (qrAgeMs > QR_TIMEOUT_MS) {
+      console.warn(
+        `[WhatsApp][User ${userId}] QR stale for ${Math.floor(qrAgeMs / 1000)}s; auto-resetting...`
+      );
+      logoutAndReinitialize(userId).catch((err) => {
+        console.error(`[WhatsApp][User ${userId}] Auto-reset failed:`, err.message);
+      });
+    }
+  }
 
   return {
     connected,
