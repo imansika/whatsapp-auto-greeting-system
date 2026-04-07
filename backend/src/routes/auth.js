@@ -1,9 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 require('dotenv').config();
+
+const PASSWORD_RESET_TOKEN_TTL_MINUTES = 15;
+
+const hashResetToken = (token) =>
+  crypto.createHash('sha256').update(String(token)).digest('hex');
 
 /**
  * REGISTER
@@ -96,6 +102,116 @@ router.post('/login', (req, res) => {
       }
     });
   });
+});
+
+/**
+ * REQUEST PASSWORD RESET TOKEN
+ */
+router.post('/forgot-password/request', (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  const findUserSql = `SELECT id FROM users WHERE email = ? LIMIT 1`;
+
+  db.query(findUserSql, [email], (findErr, rows) => {
+    if (findErr) {
+      return res.status(500).json({ error: findErr.message });
+    }
+
+    if (!rows.length) {
+      return res.status(404).json({ error: 'No user found with the provided email' });
+    }
+
+    const userId = rows[0].id;
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashResetToken(rawToken);
+
+    const cleanupSql = `DELETE FROM password_reset_tokens WHERE user_id = ? OR expires_at < NOW() OR is_used = 1`;
+    db.query(cleanupSql, [userId], (cleanupErr) => {
+      if (cleanupErr) {
+        return res.status(500).json({ error: cleanupErr.message });
+      }
+
+      const insertSql = `
+        INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+        VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE))
+      `;
+
+      db.query(insertSql, [userId, tokenHash, PASSWORD_RESET_TOKEN_TTL_MINUTES], (insertErr) => {
+        if (insertErr) {
+          return res.status(500).json({ error: insertErr.message });
+        }
+
+        return res.json({
+          message: 'Reset token generated successfully.',
+          resetToken: rawToken,
+          expiresInMinutes: PASSWORD_RESET_TOKEN_TTL_MINUTES,
+        });
+      });
+    });
+  });
+});
+
+/**
+ * RESET PASSWORD USING TOKEN
+ */
+router.post('/forgot-password/reset', async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: 'Token and new password are required' });
+  }
+
+  if (String(newPassword).length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  }
+
+  try {
+    const tokenHash = hashResetToken(token);
+    const findTokenSql = `
+      SELECT id, user_id
+      FROM password_reset_tokens
+      WHERE token_hash = ?
+        AND is_used = 0
+        AND expires_at > NOW()
+      ORDER BY id DESC
+      LIMIT 1
+    `;
+
+    db.query(findTokenSql, [tokenHash], async (findErr, rows) => {
+      if (findErr) {
+        return res.status(500).json({ error: findErr.message });
+      }
+
+      if (!rows.length) {
+        return res.status(400).json({ error: 'Invalid or expired reset token' });
+      }
+
+      const { id: tokenId, user_id: userId } = rows[0];
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      const updatePasswordSql = `UPDATE users SET password = ? WHERE id = ?`;
+      db.query(updatePasswordSql, [hashedPassword, userId], (updateErr) => {
+        if (updateErr) {
+          return res.status(500).json({ error: updateErr.message });
+        }
+
+        const consumeTokenSql = `UPDATE password_reset_tokens SET is_used = 1 WHERE id = ?`;
+        db.query(consumeTokenSql, [tokenId], (consumeErr) => {
+          if (consumeErr) {
+            return res.status(500).json({ error: consumeErr.message });
+          }
+
+          return res.json({ message: 'Password reset successful. You can now sign in.' });
+        });
+      });
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;

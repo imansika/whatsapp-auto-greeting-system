@@ -103,6 +103,31 @@ const authService = {
     }
   },
 
+  // Request password reset token
+  requestPasswordReset: async (email) => {
+    try {
+      const response = await apiClient.post('/forgot-password/request', {
+        email,
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  // Reset password with token
+  resetPasswordWithToken: async (token, newPassword) => {
+    try {
+      const response = await apiClient.post('/forgot-password/reset', {
+        token,
+        newPassword,
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
   // Logout user
   logout: () => {
     clearAuthState();

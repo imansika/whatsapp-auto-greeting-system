@@ -5,7 +5,7 @@ USE whatsapp_greeting;
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
-  id INT AUTO_INCREMENT PRIMARY KEY,
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   username VARCHAR(255) NOT NULL UNIQUE,
   email VARCHAR(255) NOT NULL UNIQUE,
   phone VARCHAR(20),
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Create greetings table (for storing greeting messages)
 CREATE TABLE IF NOT EXISTS greeting_messages (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
+  user_id INT UNSIGNED NOT NULL,
   title VARCHAR(255) NOT NULL,
   trigger_keyword VARCHAR(255) NOT NULL,
   reply_message TEXT NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS greeting_messages (
 -- Create WhatsApp session table
 CREATE TABLE IF NOT EXISTS whatsapp_sessions (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
+  user_id INT UNSIGNED NOT NULL,
   whatsapp_number VARCHAR(20),
   status VARCHAR(20) DEFAULT 'disconnected',
   session_data TEXT NULL,
@@ -42,12 +42,24 @@ CREATE TABLE IF NOT EXISTS whatsapp_sessions (
 
 CREATE TABLE IF NOT EXISTS message_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT,
+  user_id INT UNSIGNED,
     sender_number VARCHAR(20),
   sender_name VARCHAR(255),
     message_text TEXT,
     direction ENUM('incoming','outgoing'),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  expires_at TIMESTAMP NOT NULL,
+  is_used BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_password_reset_user_id (user_id),
+  INDEX idx_password_reset_expires_at (expires_at),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- If the table already exists without the unique key, add it:
