@@ -2,14 +2,50 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 require('dotenv').config();
 
 const PASSWORD_RESET_TOKEN_TTL_MINUTES = 15;
+const RESET_GENERIC_MESSAGE = 'If an account exists for that email, a reset token has been sent.';
 
 const hashResetToken = (token) =>
   crypto.createHash('sha256').update(String(token)).digest('hex');
+
+const getSmtpTransporter = () => {
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 587);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+};
+
+const sendPasswordResetTokenEmail = async (toEmail, token) => {
+  const transporter = getSmtpTransporter();
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+  if (!transporter || !from) {
+    throw new Error('SMTP is not configured');
+  }
+
+  await transporter.sendMail({
+    from,
+    to: toEmail,
+    subject: 'Your password reset token',
+    text: `Use this reset token to change your password: ${token}\n\nThis token expires in ${PASSWORD_RESET_TOKEN_TTL_MINUTES} minutes. If you did not request this, ignore this email.`,
+  });
+};
 
 /**
  * REGISTER
@@ -114,18 +150,20 @@ router.post('/forgot-password/request', (req, res) => {
     return res.status(400).json({ error: 'Email is required' });
   }
 
-  const findUserSql = `SELECT id FROM users WHERE email = ? LIMIT 1`;
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const findUserSql = `SELECT id, email FROM users WHERE email = ? LIMIT 1`;
 
-  db.query(findUserSql, [email], (findErr, rows) => {
+  db.query(findUserSql, [normalizedEmail], (findErr, rows) => {
     if (findErr) {
       return res.status(500).json({ error: findErr.message });
     }
 
     if (!rows.length) {
-      return res.status(404).json({ error: 'No user found with the provided email' });
+      return res.json({ message: RESET_GENERIC_MESSAGE });
     }
 
     const userId = rows[0].id;
+    const userEmail = rows[0].email;
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = hashResetToken(rawToken);
 
@@ -145,11 +183,19 @@ router.post('/forgot-password/request', (req, res) => {
           return res.status(500).json({ error: insertErr.message });
         }
 
-        return res.json({
-          message: 'Reset token generated successfully.',
-          resetToken: rawToken,
-          expiresInMinutes: PASSWORD_RESET_TOKEN_TTL_MINUTES,
-        });
+        sendPasswordResetTokenEmail(userEmail, rawToken)
+          .then(() => {
+            return res.json({ message: RESET_GENERIC_MESSAGE });
+          })
+          .catch((mailErr) => {
+            const removeSql = 'DELETE FROM password_reset_tokens WHERE token_hash = ?';
+            db.query(removeSql, [tokenHash], () => {
+              console.error('Password reset email send failed:', mailErr.message);
+              return res.status(500).json({
+                error: 'Unable to send reset email right now. Please try again later.',
+              });
+            });
+          });
       });
     });
   });

@@ -223,13 +223,11 @@ const LoginPage = ({ onSwitch }) => {
     setForgotSuccess("");
 
     try {
-      const response = await authService.requestPasswordReset(forgotEmail);
-      const expiresIn = response?.expiresInMinutes || 15;
-      const tokenFromServer = response?.resetToken || "";
+      await authService.requestPasswordReset(forgotEmail);
 
       setTokenRequested(true);
-      setForgotToken(tokenFromServer);
-      setForgotSuccess(`Reset token generated. Expires in ${expiresIn} minutes.`);
+      setForgotToken("");
+      setForgotSuccess("If your email exists, a reset token has been sent. Check your inbox.");
     } catch (err) {
       setForgotError(err.error || err.message || "Failed to generate reset token");
     } finally {
@@ -372,7 +370,7 @@ const LoginPage = ({ onSwitch }) => {
 
           {!tokenRequested ? (
             <Button onClick={handleRequestResetToken} disabled={requestingToken} variant="outlined">
-              {requestingToken ? "Generating token..." : "Generate Reset Token"}
+              {requestingToken ? "Sending token..." : "Send Reset Token"}
             </Button>
           ) : (
             <>
