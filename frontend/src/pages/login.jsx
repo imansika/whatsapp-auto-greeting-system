@@ -3,6 +3,10 @@ import {
   Box,
   Button,
   Checkbox,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   FormControlLabel,
   IconButton,
@@ -151,6 +155,16 @@ const LoginPage = ({ onSwitch }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotToken, setForgotToken] = useState("");
+  const [forgotNewPassword, setForgotNewPassword] = useState("");
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [requestingToken, setRequestingToken] = useState(false);
+  const [tokenRequested, setTokenRequested] = useState(false);
+  const [forgotError, setForgotError] = useState("");
+  const [forgotSuccess, setForgotSuccess] = useState("");
 
   const handleLogin = async () => {
     if (!username || !password) {
@@ -176,6 +190,86 @@ const LoginPage = ({ onSwitch }) => {
       setError(err.error || err.message || "Login failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openForgotPassword = () => {
+    setForgotOpen(true);
+    setForgotError("");
+    setForgotSuccess("");
+  };
+
+  const closeForgotPassword = () => {
+    if (forgotLoading) return;
+    setForgotOpen(false);
+    setForgotError("");
+    setForgotSuccess("");
+    setForgotEmail("");
+    setForgotToken("");
+    setForgotNewPassword("");
+    setForgotConfirmPassword("");
+    setRequestingToken(false);
+    setTokenRequested(false);
+  };
+
+  const handleRequestResetToken = async () => {
+    if (!forgotEmail) {
+      setForgotError("Please provide your email");
+      return;
+    }
+
+    setRequestingToken(true);
+    setForgotError("");
+    setForgotSuccess("");
+
+    try {
+      const response = await authService.requestPasswordReset(forgotEmail);
+      const expiresIn = response?.expiresInMinutes || 15;
+      const tokenFromServer = response?.resetToken || "";
+
+      setTokenRequested(true);
+      setForgotToken(tokenFromServer);
+      setForgotSuccess(`Reset token generated. Expires in ${expiresIn} minutes.`);
+    } catch (err) {
+      setForgotError(err.error || err.message || "Failed to generate reset token");
+    } finally {
+      setRequestingToken(false);
+    }
+  };
+
+  const handleResetWithToken = async () => {
+    if (!forgotToken || !forgotNewPassword || !forgotConfirmPassword) {
+      setForgotError("Please enter token and new password fields");
+      return;
+    }
+
+    if (forgotNewPassword.length < 6) {
+      setForgotError("New password must be at least 6 characters");
+      return;
+    }
+
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      setForgotError("Passwords do not match");
+      return;
+    }
+
+    setForgotLoading(true);
+    setForgotError("");
+    setForgotSuccess("");
+
+    try {
+      const response = await authService.resetPasswordWithToken(
+        forgotToken,
+        forgotNewPassword,
+      );
+      setForgotSuccess(response?.message || "Password reset successful. You can sign in now.");
+      setTimeout(() => {
+        closeForgotPassword();
+      }, 1200);
+    } catch (err) {
+      setForgotError(err.error || err.message || "Failed to reset password");
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -215,7 +309,13 @@ const LoginPage = ({ onSwitch }) => {
           control={<Checkbox checked={remember} onChange={(e) => setRemember(e.target.checked)} size="small" disabled={loading} />}
           label={<Typography variant="body2" color="text.secondary">Remember me</Typography>}
         />
-        <Link href="#" underline="hover" sx={{ color: "#25D366", fontSize: "0.875rem", fontWeight: 600 }}>
+        <Link
+          component="button"
+          type="button"
+          onClick={openForgotPassword}
+          underline="hover"
+          sx={{ color: "#25D366", fontSize: "0.875rem", fontWeight: 600, border: 0, background: "transparent", p: 0, cursor: "pointer" }}
+        >
           Forgot password?
         </Link>
       </Box>
@@ -255,6 +355,61 @@ const LoginPage = ({ onSwitch }) => {
       >
         Create New Account
       </Button>
+
+      <Dialog open={forgotOpen} onClose={closeForgotPassword} fullWidth maxWidth="xs">
+        <DialogTitle fontWeight={700}>Reset Password</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 1.8, pt: "8px !important" }}>
+          {forgotError && <Alert severity="error">{forgotError}</Alert>}
+          {forgotSuccess && <Alert severity="success">{forgotSuccess}</Alert>}
+
+          <TextField
+            label="Email"
+            type="email"
+            value={forgotEmail}
+            onChange={(e) => setForgotEmail(e.target.value)}
+            disabled={requestingToken || forgotLoading || tokenRequested}
+          />
+
+          {!tokenRequested ? (
+            <Button onClick={handleRequestResetToken} disabled={requestingToken} variant="outlined">
+              {requestingToken ? "Generating token..." : "Generate Reset Token"}
+            </Button>
+          ) : (
+            <>
+              <TextField
+                label="Reset Token"
+                value={forgotToken}
+                onChange={(e) => setForgotToken(e.target.value)}
+                disabled={forgotLoading}
+              />
+              <PasswordField
+                label="New Password"
+                value={forgotNewPassword}
+                onChange={setForgotNewPassword}
+                disabled={forgotLoading}
+              />
+              <PasswordField
+                label="Confirm New Password"
+                value={forgotConfirmPassword}
+                onChange={setForgotConfirmPassword}
+                disabled={forgotLoading}
+              />
+            </>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={closeForgotPassword} disabled={requestingToken || forgotLoading} color="inherit">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleResetWithToken}
+            disabled={!tokenRequested || forgotLoading}
+            variant="contained"
+          >
+            {forgotLoading ? "Resetting..." : "Reset Password"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
@@ -425,6 +580,7 @@ const RegisterPage = ({ onSwitch }) => {
       >
         Sign In Instead
       </Button>
+
     </Box>
   );
 };

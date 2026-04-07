@@ -9,7 +9,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
 -- Ensure greeting_messages has the fields required by the frontend
 CREATE TABLE IF NOT EXISTS greeting_messages (
 	id INT AUTO_INCREMENT PRIMARY KEY,
-	user_id INT NOT NULL,
+	user_id INT UNSIGNED NOT NULL,
 	title VARCHAR(255) NOT NULL,
 	trigger_keyword VARCHAR(255) NOT NULL,
 	reply_message TEXT NOT NULL,
@@ -68,6 +68,18 @@ DEALLOCATE PREPARE stmt;
 
 -- Ensure message_logs can store sender display name without requiring a contacts table
 ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255) AFTER sender_number;
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+	id INT AUTO_INCREMENT PRIMARY KEY,
+	user_id INT UNSIGNED NOT NULL,
+	token_hash CHAR(64) NOT NULL UNIQUE,
+	expires_at TIMESTAMP NOT NULL,
+	is_used BOOLEAN DEFAULT FALSE,
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	INDEX idx_password_reset_user_id (user_id),
+	INDEX idx_password_reset_expires_at (expires_at),
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
 
 -- Display table structure to verify
 DESCRIBE users;
