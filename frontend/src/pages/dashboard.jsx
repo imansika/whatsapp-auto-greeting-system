@@ -240,7 +240,9 @@ const NotificationPanel = ({ open, onClose, notifications }) => {
   );
 };
 
-const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/$/, "");
+const API_BASE_URL = (
+  process.env.REACT_APP_API_BASE_URL || "http://localhost:5000"
+).replace(/\/$/, "");
 const WHATSAPP_API_URL = `${API_BASE_URL}/api/whatsapp/status`;
 const WHATSAPP_QR_BASE_URL = API_BASE_URL;
 const WHATSAPP_LOGOUT_API_URL = `${API_BASE_URL}/api/whatsapp/logout`;

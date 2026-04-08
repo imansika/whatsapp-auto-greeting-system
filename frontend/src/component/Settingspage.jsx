@@ -2,26 +2,10 @@ import { useState } from "react";
 import {
   Person as PersonIcon,
   Lock as LockIcon,
-  Public as GeneralIcon,
   Save as SaveIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
 } from "@mui/icons-material";
-
-// ── Toggle Switch ──────────────────────────────────────────────────────────
-const Toggle = ({ checked, onChange }) => (
-  <button
-    type="button"
-    onClick={() => onChange(!checked)}
-    className={`relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0
-      ${checked ? "bg-[#25D366]" : "bg-gray-200"}`}
-  >
-    <span
-      className={`inline-block w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-200 mt-0.5
-        ${checked ? "translate-x-5" : "translate-x-0.5"}`}
-    />
-  </button>
-);
 
 // ── Text Input ─────────────────────────────────────────────────────────────
 const TextInput = ({ label, value, onChange, type = "text", placeholder = "", hint = "", rightElement = null }) => (
@@ -169,102 +153,10 @@ const PasswordTab = () => {
   );
 };
 
-// ── General Tab ────────────────────────────────────────────────────────────
-const GeneralTab = () => {
-  const [autoReply, setAutoReply] = useState(true);
-  const [delay, setDelay] = useState("5");
-  const [language, setLanguage] = useState("English");
-  const [timezone, setTimezone] = useState("Eastern Time (US & Canada)");
-  const [saved, setSaved] = useState(false);
-
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  };
-
-  const selectClass = "w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-base text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition-all appearance-none cursor-pointer";
-
-  return (
-    <div className="flex flex-col gap-5">
-      <h3 className="text-xl font-extrabold text-gray-900">General Settings</h3>
-
-      {/* Auto-Reply toggle */}
-      <div className="flex items-center justify-between py-1">
-        <div>
-          <p className="text-base font-semibold text-gray-800">Auto-Reply Enabled</p>
-          <p className="text-sm text-gray-400 mt-0.5">Enable or disable automatic replies</p>
-        </div>
-        <Toggle checked={autoReply} onChange={setAutoReply} />
-      </div>
-
-      {/* Delay */}
-      <TextInput
-        label="Auto-Reply Delay (seconds)"
-        value={delay}
-        onChange={setDelay}
-        type="number"
-        placeholder="5"
-        hint="Delay before sending automatic replies (0-60 seconds)"
-      />
-
-      {/* Language */}
-      <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-semibold text-gray-700">Language</label>
-        <div className="relative">
-          <select value={language} onChange={(e) => setLanguage(e.target.value)} className={selectClass}>
-            {["English", "Spanish", "French", "German", "Portuguese", "Arabic", "Hindi"].map((l) => (
-              <option key={l}>{l}</option>
-            ))}
-          </select>
-          <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </div>
-
-      {/* Timezone */}
-      <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-semibold text-gray-700">Timezone</label>
-        <div className="relative">
-          <select value={timezone} onChange={(e) => setTimezone(e.target.value)} className={selectClass}>
-            {[
-              "Eastern Time (US & Canada)",
-              "Central Time (US & Canada)",
-              "Mountain Time (US & Canada)",
-              "Pacific Time (US & Canada)",
-              "UTC",
-              "London (GMT)",
-              "Paris (CET)",
-              "Dubai (GST)",
-              "India (IST)",
-              "Singapore (SGT)",
-            ].map((tz) => (
-              <option key={tz}>{tz}</option>
-            ))}
-          </select>
-          <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-4 pt-1">
-        <SaveButton onClick={handleSave} />
-        {saved && (
-          <span className="text-base text-[#25D366] font-semibold animate-pulse">
-            ✓ Settings saved!
-          </span>
-        )}
-      </div>
-    </div>
-  );
-};
-
 // ── Settings Page ──────────────────────────────────────────────────────────
 const tabs = [
   { id: "profile",  label: "Profile",  icon: <PersonIcon fontSize="small" /> },
   { id: "password", label: "Password", icon: <LockIcon fontSize="small" /> },
-  { id: "general",  label: "General",  icon: <GeneralIcon fontSize="small" /> },
 ];
 
 export default function SettingsPage({ user }) {
@@ -274,7 +166,6 @@ export default function SettingsPage({ user }) {
     switch (activeTab) {
       case "profile":  return <ProfileTab user={user} />;
       case "password": return <PasswordTab />;
-      case "general":  return <GeneralTab />;
       default:         return null;
     }
   };

@@ -5,7 +5,6 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
-require('dotenv').config();
 
 const PASSWORD_RESET_TOKEN_TTL_MINUTES = 15;
 const RESET_GENERIC_MESSAGE = 'If an account exists for that email, a reset token has been sent.';
