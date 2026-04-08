@@ -77,7 +77,7 @@ Optional variables:
 2. Create `.env` from `.env.example`.
 
 ```powershell
-cd ..\frontend
+cd frontend
 Copy-Item .env.example .env
 cd ..
 ```
