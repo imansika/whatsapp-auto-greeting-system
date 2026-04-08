@@ -18,10 +18,10 @@ Optional (for forgot-password email tests):
 ## 2. Clone and open project
 
 1. Open PowerShell.
-2. Run the commands below (replace `<your-github-repo-url>` with your real repository URL):
+2. Run the commands below 
 
 ```powershell
-git clone <your-github-repo-url>
+git clone https://github.com/imansika/whatsapp-auto-greeting-system
 cd whatsapp-auto-greeting-system
 ```
 
