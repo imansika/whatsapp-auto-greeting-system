@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+const path = require('path');
+
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
 // Import database connection to initialize it
 const db = require('./src/db');
@@ -13,7 +15,8 @@ const whatsappRoutes = require('./src/routes/whatsapp');
 const app = express();
 
 const PORT = process.env.PORT || 5000;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+const CORS_ORIGIN =
+  process.env.CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000';
 
 const normalizeOrigin = (value) => String(value || '').trim().replace(/\/+$/, '');
 const getHostname = (value) => {
