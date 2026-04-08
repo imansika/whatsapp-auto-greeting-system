@@ -18,10 +18,10 @@ Optional (for forgot-password email tests):
 ## 2. Clone and open project
 
 1. Open PowerShell.
-2. Run the commands below (replace `<your-github-repo-url>` with your real repository URL):
+2. Run the commands below 
 
 ```powershell
-git clone <your-github-repo-url>
+git clone https://github.com/imansika/whatsapp-auto-greeting-system
 cd whatsapp-auto-greeting-system
 ```
 
@@ -43,7 +43,9 @@ npm install
 cd ..
 ```
 
-## 4. Configure backend environment
+## 4. Configure environment files
+
+### Backend
 
 1. Go to backend folder.
 2. Create `.env` from `.env.example`.
@@ -68,6 +70,21 @@ Required variables:
 Optional variables:
 
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (needed only for forgot-password email testing)
+
+### Frontend
+
+1. Go to frontend folder.
+2. Create `.env` from `.env.example`.
+
+```powershell
+cd frontend
+Copy-Item .env.example .env
+cd ..
+```
+
+Frontend variable:
+
+- `REACT_APP_API_BASE_URL` (default local backend URL is `http://localhost:5000`)
 
 
 ## 5. Create database and tables
