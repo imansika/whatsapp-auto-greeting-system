@@ -229,8 +229,8 @@ export default function MessagesPage() {
     <div className="flex flex-col gap-5">
       {/* Heading */}
       <div>
-        <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Messages</h2>
-        <p className="text-lg text-gray-500 mt-0.5">
+        <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">Messages</h2>
+        <p className="text-base md:text-lg text-gray-500 mt-0.5">
           View and manage all incoming messages and auto-replies
         </p>
       </div>
@@ -242,7 +242,7 @@ export default function MessagesPage() {
       )}
 
       {/* Search + Filter row */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         {/* Search */}
         <div className="flex-1 flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm focus-within:ring-2 focus-within:ring-[#25D366] focus-within:border-transparent transition-all">
           <SearchIcon style={{ color: "#9ca3af", fontSize: 20 }} />
@@ -258,16 +258,16 @@ export default function MessagesPage() {
         {/* Filter icon button */}
         <button
           onClick={() => setShowFilter((v) => !v)}
-          className="p-2.5 bg-white border border-gray-200 rounded-xl shadow-sm hover:bg-gray-50 transition-all"
+          className="p-2.5 bg-white border border-gray-200 rounded-xl shadow-sm hover:bg-gray-50 transition-all self-start sm:self-auto"
         >
           <FilterIcon style={{ color: "#6b7280", fontSize: 20 }} />
         </button>
 
         {/* Filter dropdown */}
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <button
             onClick={() => setShowFilter((v) => !v)}
-            className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-all min-w-36"
+            className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-all w-full sm:min-w-36"
           >
             <span className="flex-1 text-left">{filter}</span>
             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -276,7 +276,7 @@ export default function MessagesPage() {
           </button>
 
           {showFilter && (
-            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-10 min-w-40 py-1">
+            <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-10 w-full sm:min-w-40 sm:w-auto py-1">
               {FILTER_OPTIONS.map((opt) => (
                 <button
                   key={opt}

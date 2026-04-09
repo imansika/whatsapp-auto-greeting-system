@@ -11,6 +11,7 @@ import messageLogService from "../services/messagelogservice";
 import {
   Message as MessageIcon,
   Chat as ChatIcon,
+  Menu as MenuIcon,
   QrCode as QrCodeIcon,
   Settings as SettingsIcon,
   Logout as LogoutIcon,
@@ -53,71 +54,92 @@ const navItems = [
 ];
 
 // ── Sidebar ────────────────────────────────────────────────────────────────
-const Sidebar = ({ active, setActive, user, onLogout }) => (
-  <aside className="flex flex-col w-80 min-h-screen bg-white border-r border-gray-100 shadow-sm flex-shrink-0">
-    {/* Brand */}
-    <div className="flex items-center gap-2 px-4 py-4 bg-[#25D366]">
-      <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
-        <ChatIcon style={{ color: "#fff", fontSize: 22 }} />
-      </div>
-      <span className="text-white font-bold text-base tracking-wide">
-        WhatsApp Greeting System
-      </span>
-    </div>
+const Sidebar = ({ active, setActive, user, onLogout, open, onClose }) => (
+  <>
+    {open && (
+      <button
+        type="button"
+        aria-label="Close menu"
+        onClick={onClose}
+        className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+      />
+    )}
 
-    {/* User */}
-    <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
-      <div className="w-10 h-10 rounded-full bg-[#25D366]/15 flex items-center justify-center flex-shrink-0">
-        <span className="text-[#25D366] font-bold text-base">
-          {user.initials}
+    <aside
+      className={`fixed inset-y-0 left-0 z-50 flex flex-col w-72 sm:w-80 bg-white border-r border-gray-100 shadow-sm flex-shrink-0 transform transition-transform duration-300 lg:static lg:translate-x-0 lg:z-auto lg:min-h-screen ${
+        open ? "translate-x-0" : "-translate-x-full"
+      }`}
+    >
+      {/* Brand */}
+      <div className="flex items-center gap-2 px-4 py-4 bg-[#25D366]">
+        <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+          <ChatIcon style={{ color: "#fff", fontSize: 22 }} />
+        </div>
+        <span className="text-white font-bold text-base tracking-wide">
+          WhatsApp Greeting System
         </span>
       </div>
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-gray-800 truncate">
-          {user.name}
-        </p>
-        <p className="text-xs text-gray-400 truncate">{user.email}</p>
-      </div>
-    </div>
 
-    {/* Nav */}
-    <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
-      {navItems.map((item) => (
-        <button
-          key={item.id}
-          onClick={() => setActive(item.id)}
-          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all w-full text-left
+      {/* User */}
+      <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
+        <div className="w-10 h-10 rounded-full bg-[#25D366]/15 flex items-center justify-center flex-shrink-0">
+          <span className="text-[#25D366] font-bold text-base">
+            {user.initials}
+          </span>
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-800 truncate">
+            {user.name}
+          </p>
+          <p className="text-xs text-gray-400 truncate">{user.email}</p>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
+        {navItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => {
+              setActive(item.id);
+              onClose();
+            }}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all w-full text-left
             ${
               active === item.id
                 ? "bg-[#25D366] text-white shadow-md shadow-[#25D366]/25"
                 : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
             }`}
-        >
-          <span className={active === item.id ? "text-white" : "text-gray-400"}>
-            {item.icon}
-          </span>
-          {item.label}
-        </button>
-      ))}
-    </nav>
+          >
+            <span
+              className={active === item.id ? "text-white" : "text-gray-400"}
+            >
+              {item.icon}
+            </span>
+            {item.label}
+          </button>
+        ))}
+      </nav>
 
-    {/* Logout */}
-    <div className="px-3 pb-5">
-      <button
-        onClick={onLogout}
-        className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all w-full"
-      >
-        <LogoutIcon fontSize="small" />
-        Logout
-      </button>
-    </div>
-  </aside>
+      {/* Logout */}
+      <div className="px-3 pb-5">
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all w-full"
+        >
+          <LogoutIcon fontSize="small" />
+          Logout
+        </button>
+      </div>
+    </aside>
+  </>
 );
 
 // ── Top bar ────────────────────────────────────────────────────────────────
 const TopBar = ({
   connected,
   isConnecting,
+  onOpenSidebar,
   onToggleNotifications,
   unreadNotifications,
 }) => {
@@ -138,13 +160,23 @@ const TopBar = ({
       : "text-gray-400";
 
   return (
-    <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-8 flex-shrink-0 shadow-sm">
-      <h1 className="text-xl font-bold text-gray-800 tracking-tight">
-        WhatsApp Auto-Reply Dashboard
-      </h1>
+    <header className="h-14 sm:h-16 bg-white border-b border-gray-100 flex items-center justify-between px-3 sm:px-6 flex-shrink-0 shadow-sm gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        <button
+          type="button"
+          onClick={onOpenSidebar}
+          aria-label="Open sidebar"
+          className="inline-flex lg:hidden items-center justify-center w-9 h-9 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+        >
+          <MenuIcon style={{ fontSize: 21 }} />
+        </button>
+        <h1 className="text-base sm:text-xl font-bold text-gray-800 tracking-tight truncate">
+          WhatsApp Auto-Reply Dashboard
+        </h1>
+      </div>
       <div className="flex items-center gap-3">
         <div
-          className={`flex items-center gap-2 text-sm font-semibold ${textClass}`}
+          className={`hidden sm:flex items-center gap-2 text-sm font-semibold ${textClass}`}
         >
           <span className={`w-2 h-2 rounded-full ${dotClass}`} />
           {label}
@@ -190,7 +222,7 @@ const NotificationPanel = ({ open, onClose, notifications }) => {
       )}
 
       <aside
-        className={`fixed top-16 right-0 h-[calc(100vh-4rem)] w-full max-w-sm bg-white border-l border-gray-100 shadow-xl z-40 transform transition-transform duration-300 ${
+        className={`fixed top-14 sm:top-16 right-0 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] w-full max-w-sm bg-white border-l border-gray-100 shadow-xl z-40 transform transition-transform duration-300 ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -400,7 +432,7 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
     <div className="flex flex-col gap-5">
       {/* Heading */}
       <div>
-        <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+        <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">
           WhatsApp Connection
         </h2>
         <p className="text-sm text-gray-500 mt-0.5">
@@ -410,7 +442,7 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
 
       {/* Status banner */}
       <div
-        className={`flex items-center gap-3 px-5 py-4 rounded-xl border ${
+        className={`flex items-start sm:items-center gap-3 px-4 sm:px-5 py-4 rounded-xl border ${
           connected
             ? "bg-[#f0fdf4] border-[#bbf7d0]"
             : isConnecting
@@ -459,7 +491,7 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* QR card */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7 flex flex-col items-center gap-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-7 flex flex-col items-center gap-4">
           <div className="flex items-center justify-between w-full">
             <h3 className="text-base font-bold text-gray-800">QR Code</h3>
             <button
@@ -476,7 +508,7 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
             </button>
           </div>
 
-          <div className="p-4 rounded-xl border-2 border-gray-100 bg-white shadow-inner">
+          <div className="p-4 rounded-xl border-2 border-gray-100 bg-white shadow-inner max-w-full">
             {qrLoading && (
               <p className="text-xs text-gray-500">Loading live QR code...</p>
             )}
@@ -489,7 +521,7 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
                   key={qrImage}
                   src={qrImage}
                   alt="WhatsApp QR"
-                  className="w-[320px] h-[320px]"
+                  className="w-56 h-56 sm:w-[320px] sm:h-[320px] max-w-full"
                 />
               </div>
             )}
@@ -530,7 +562,7 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
         </div>
 
         {/* How to connect */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7 flex flex-col gap-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-7 flex flex-col gap-4">
           <h3 className="text-base font-bold text-gray-800">How to Connect</h3>
 
           <div className="flex flex-col gap-4">
@@ -591,6 +623,7 @@ const PlaceholderPage = ({ title }) => (
 export default function App() {
   const navigate = useNavigate();
   const [active, setActive] = useState("qr");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [connected, setConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -743,6 +776,8 @@ export default function App() {
         <Sidebar
           active={active}
           setActive={setActive}
+          open={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
           onLogout={handleAppLogout}
           user={{
             name: displayName,
@@ -755,10 +790,11 @@ export default function App() {
           <TopBar
             connected={connected}
             isConnecting={isConnecting}
+            onOpenSidebar={() => setIsSidebarOpen(true)}
             onToggleNotifications={toggleNotifications}
             unreadNotifications={unreadNotifications}
           />
-          <main className="flex-1 p-6 overflow-auto">{renderPage()}</main>
+          <main className="flex-1 p-3 sm:p-6 overflow-auto">{renderPage()}</main>
         </div>
 
         <NotificationPanel

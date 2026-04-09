@@ -606,11 +606,11 @@ export default function App() {
             width: "100%",
             maxWidth: 900,
             bgcolor: "white",
-            borderRadius: 4,
+            borderRadius: { xs: 2, md: 4 },
             boxShadow: "0 0 30px rgba(37,211,102,0.15)",
             display: "flex",
             overflow: "hidden",
-            minHeight: 600,
+            minHeight: { xs: "auto", md: 600 },
           }}
         >
           {/* ── Left green panel ── */}
@@ -623,7 +623,7 @@ export default function App() {
               display: "flex",
               flexDirection: "column",
               justifyContent: "space-between",
-              p: { xs: 3, lg: 6 },
+              p: { xs: 2.5, sm: 3, lg: 6 },
               overflowY: "auto",
               backgroundColor: "white",
             }}
