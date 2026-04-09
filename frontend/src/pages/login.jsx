@@ -16,7 +16,6 @@ import {
   Typography,
   createTheme,
   ThemeProvider,
-  Alert,
 } from "@mui/material";
 import {
   Visibility,
@@ -29,6 +28,7 @@ import {
 } from "@mui/icons-material";
 import bg from "../assets/image.svg";
 import authService from "../services/authservice";
+import notify, { getErrorMessage } from "../utils/notify";
 
 // ── WhatsApp green MUI theme
 const theme = createTheme({
@@ -153,8 +153,6 @@ const LoginPage = ({ onSwitch }) => {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotToken, setForgotToken] = useState("");
@@ -163,22 +161,18 @@ const LoginPage = ({ onSwitch }) => {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [requestingToken, setRequestingToken] = useState(false);
   const [tokenRequested, setTokenRequested] = useState(false);
-  const [forgotError, setForgotError] = useState("");
-  const [forgotSuccess, setForgotSuccess] = useState("");
 
   const handleLogin = async () => {
     if (!username || !password) {
-      setError("Please fill in all fields");
+      notify.warning("Please fill in all fields.");
       return;
     }
 
     setLoading(true);
-    setError("");
-    setSuccess("");
 
     try {
       await authService.login(username, password);
-      setSuccess("Login successful! Redirecting...");
+      notify.success("Login successful. Redirecting...");
       // Clear form
       setUsername("");
       setPassword("");
@@ -187,7 +181,7 @@ const LoginPage = ({ onSwitch }) => {
         window.location.href = "/dashboard";
       }, 1500);
     } catch (err) {
-      setError(err.error || err.message || "Login failed");
+      notify.error(getErrorMessage(err, "Login failed."));
     } finally {
       setLoading(false);
     }
@@ -195,15 +189,11 @@ const LoginPage = ({ onSwitch }) => {
 
   const openForgotPassword = () => {
     setForgotOpen(true);
-    setForgotError("");
-    setForgotSuccess("");
   };
 
   const closeForgotPassword = () => {
     if (forgotLoading) return;
     setForgotOpen(false);
-    setForgotError("");
-    setForgotSuccess("");
     setForgotEmail("");
     setForgotToken("");
     setForgotNewPassword("");
@@ -214,22 +204,20 @@ const LoginPage = ({ onSwitch }) => {
 
   const handleRequestResetToken = async () => {
     if (!forgotEmail) {
-      setForgotError("Please provide your email");
+      notify.warning("Please provide your email.");
       return;
     }
 
     setRequestingToken(true);
-    setForgotError("");
-    setForgotSuccess("");
 
     try {
       await authService.requestPasswordReset(forgotEmail);
 
       setTokenRequested(true);
       setForgotToken("");
-      setForgotSuccess("If your email exists, a reset token has been sent. Check your inbox.");
+      notify.info("If your email exists, a reset token has been sent. Check your inbox.");
     } catch (err) {
-      setForgotError(err.error || err.message || "Failed to generate reset token");
+      notify.error(getErrorMessage(err, "Failed to generate reset token."));
     } finally {
       setRequestingToken(false);
     }
@@ -237,35 +225,33 @@ const LoginPage = ({ onSwitch }) => {
 
   const handleResetWithToken = async () => {
     if (!forgotToken || !forgotNewPassword || !forgotConfirmPassword) {
-      setForgotError("Please enter token and new password fields");
+      notify.warning("Please enter token and new password fields.");
       return;
     }
 
     if (forgotNewPassword.length < 6) {
-      setForgotError("New password must be at least 6 characters");
+      notify.warning("New password must be at least 6 characters.");
       return;
     }
 
     if (forgotNewPassword !== forgotConfirmPassword) {
-      setForgotError("Passwords do not match");
+      notify.warning("Passwords do not match.");
       return;
     }
 
     setForgotLoading(true);
-    setForgotError("");
-    setForgotSuccess("");
 
     try {
       const response = await authService.resetPasswordWithToken(
         forgotToken,
         forgotNewPassword,
       );
-      setForgotSuccess(response?.message || "Password reset successful. You can sign in now.");
+      notify.success(response?.message || "Password reset successful. You can sign in now.");
       setTimeout(() => {
         closeForgotPassword();
       }, 1200);
     } catch (err) {
-      setForgotError(err.error || err.message || "Failed to reset password");
+      notify.error(getErrorMessage(err, "Failed to reset password."));
     } finally {
       setForgotLoading(false);
     }
@@ -281,9 +267,6 @@ const LoginPage = ({ onSwitch }) => {
           Sign in to your WhatsApp Auto-Reply account
         </Typography>
       </Box>
-
-      {error && <Alert severity="error">{error}</Alert>}
-      {success && <Alert severity="success">{success}</Alert>}
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <TextField
@@ -357,9 +340,6 @@ const LoginPage = ({ onSwitch }) => {
       <Dialog open={forgotOpen} onClose={closeForgotPassword} fullWidth maxWidth="xs">
         <DialogTitle fontWeight={700}>Reset Password</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 1.8, pt: "8px !important" }}>
-          {forgotError && <Alert severity="error">{forgotError}</Alert>}
-          {forgotSuccess && <Alert severity="success">{forgotSuccess}</Alert>}
-
           <TextField
             label="Email"
             type="email"
@@ -421,33 +401,29 @@ const RegisterPage = ({ onSwitch }) => {
   const [confirm, setConfirm] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
   const handleRegister = async () => {
     // Validation
     if (!username || !email || !phone || !password || !confirm) {
-      setError("Please fill in all fields");
+      notify.warning("Please fill in all fields.");
       return;
     }
 
     if (password !== confirm) {
-      setError("Passwords do not match");
+      notify.warning("Passwords do not match.");
       return;
     }
 
     if (!agreed) {
-      setError("Please agree to Terms and Conditions");
+      notify.warning("Please agree to Terms and Conditions.");
       return;
     }
 
     setLoading(true);
-    setError("");
-    setSuccess("");
 
     try {
       await authService.register(username, email, phone, password);
-      setSuccess("Account created successfully! Redirecting to dashboard...");
+      notify.success("Account created successfully. Redirecting to dashboard...");
       // Clear form
       setUsername("");
       setEmail("");
@@ -460,7 +436,7 @@ const RegisterPage = ({ onSwitch }) => {
         window.location.href = "/dashboard";
       }, 1500);
     } catch (err) {
-      setError(err.error || err.message || "Registration failed");
+      notify.error(getErrorMessage(err, "Registration failed."));
     } finally {
       setLoading(false);
     }
@@ -476,9 +452,6 @@ const RegisterPage = ({ onSwitch }) => {
           Join WhatsApp Auto-Reply System today
         </Typography>
       </Box>
-
-      {error && <Alert severity="error">{error}</Alert>}
-      {success && <Alert severity="success">{success}</Alert>}
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1.8 }}>
         <TextField

@@ -6,6 +6,7 @@ import {
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
 } from "@mui/icons-material";
+import notify from "../utils/notify";
 
 // ── Text Input ─────────────────────────────────────────────────────────────
 const TextInput = ({ label, value, onChange, type = "text", placeholder = "", hint = "", rightElement = null }) => (
@@ -45,11 +46,9 @@ const ProfileTab = ({ user }) => {
   const [email, setEmail] = useState(user?.email || "john@example.com");
   const [phone, setPhone] = useState(user?.phone || "");
   const [username, setUsername] = useState(user?.username || "johndoe");
-  const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    notify.success("Profile changes saved.");
   };
 
   return (
@@ -63,11 +62,6 @@ const ProfileTab = ({ user }) => {
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 pt-1">
         <SaveButton onClick={handleSave} />
-        {saved && (
-          <span className="text-base text-[#25D366] font-semibold animate-pulse">
-            ✓ Changes saved!
-          </span>
-        )}
       </div>
     </div>
   );
@@ -81,8 +75,6 @@ const PasswordTab = () => {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
 
   const eyeBtn = (show, toggle) => (
     <button type="button" onClick={toggle} className="text-gray-400 hover:text-[#25D366] transition-colors">
@@ -93,13 +85,11 @@ const PasswordTab = () => {
   );
 
   const handleSave = () => {
-    setError("");
-    if (!current) { setError("Please enter your current password."); return; }
-    if (newPwd.length < 6) { setError("New password must be at least 6 characters."); return; }
-    if (newPwd !== confirm) { setError("New passwords do not match."); return; }
-    setSaved(true);
+    if (!current) { notify.warning("Please enter your current password."); return; }
+    if (newPwd.length < 6) { notify.warning("New password must be at least 6 characters."); return; }
+    if (newPwd !== confirm) { notify.warning("New passwords do not match."); return; }
+    notify.success("Password updated successfully.");
     setCurrent(""); setNewPwd(""); setConfirm("");
-    setTimeout(() => setSaved(false), 2500);
   };
 
   return (
@@ -135,19 +125,8 @@ const PasswordTab = () => {
         rightElement={eyeBtn(showConfirm, () => setShowConfirm((s) => !s))}
       />
 
-      {error && (
-        <div className="px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-base text-red-600 font-medium">
-          {error}
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 pt-1">
         <SaveButton onClick={handleSave} label="Update Password" />
-        {saved && (
-          <span className="text-base text-[#25D366] font-semibold animate-pulse">
-            ✓ Password updated!
-          </span>
-        )}
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import {
   DoneAll as DoneAllIcon,
 } from "@mui/icons-material";
 import messageLogService from "../services/messagelogservice";
+import notify, { getErrorMessage } from "../utils/notify";
 
 const FILTER_OPTIONS = ["All Messages", "Auto-Replied", "Pending", "Online"];
 const AVATAR_COLORS = ["#25D366", "#3b82f6", "#f59e0b", "#8b5cf6", "#ef4444", "#14b8a6"];
@@ -196,7 +197,9 @@ export default function MessagesPage() {
         setMessageCards(buildMessageCards(rows));
       } catch (err) {
         if (!mounted) return;
-        setError(err?.response?.data?.error || "Failed to load messages.");
+        const message = getErrorMessage(err, "Failed to load messages.");
+        setError(message);
+        notify.error(message);
       } finally {
         if (mounted) {
           setLoading(false);

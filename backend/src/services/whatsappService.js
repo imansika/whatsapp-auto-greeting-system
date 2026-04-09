@@ -33,6 +33,7 @@ const getUserSessionState = (userId) => {
       activeClient: null,
       initPromise: null,
       qrGeneratedTime: null,
+      initStartTime: null,
     });
   }
   return userSessions.get(normalizedUserId);
@@ -372,6 +373,7 @@ const initializeClient = async (userId) => {
   session.initPromise = (async () => {
     if (session.isInitializing) return;
     session.isInitializing = true;
+    session.initStartTime = Date.now();
 
     if (session.activeClient) {
       try {
@@ -401,6 +403,7 @@ const initializeClient = async (userId) => {
       session.latestQr = null;
       session.latestQrText = null;
       session.qrToken = null;
+      session.initStartTime = null;
       session.lastUpdated = new Date().toISOString();
       scheduleReinit(userId);
     }
@@ -429,6 +432,7 @@ const logoutAndReinitialize = async (userId) => {
   session.latestQr = null;
   session.latestQrText = null;
   session.qrToken = null;
+  session.initStartTime = null;
   session.lastUpdated = new Date().toISOString();
 
   killStaleChrome(userId);
@@ -451,6 +455,26 @@ const logoutAndReinitialize = async (userId) => {
 
 const getStatus = (userId) => {
   const session = getUserSessionState(userId);
+
+  const INIT_TIMEOUT_MS = 120000;
+  if (
+    session.isInitializing &&
+    session.initStartTime &&
+    Date.now() - session.initStartTime > INIT_TIMEOUT_MS
+  ) {
+    console.warn(
+      `[WhatsApp][User ${userId}] Init timeout (${Math.floor(
+        (Date.now() - session.initStartTime) / 1000
+      )}s); resetting...`
+    );
+    session.isInitializing = false;
+    session.initStartTime = null;
+    if (session.activeClient) {
+      session.activeClient.destroy().catch(() => {});
+      session.activeClient = null;
+    }
+    scheduleReinit(userId);
+  }
 
   if (!session.activeClient && !session.isInitializing) {
     initializeClient(userId).catch((error) => {

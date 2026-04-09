@@ -8,6 +8,7 @@ import {
   Save as SaveIcon,
 } from "@mui/icons-material";
 import greetingService from "../services/greetingservice";
+import notify, { getErrorMessage } from "../utils/notify";
 
 // ── Toggle Switch ──────────────────────────────────────────────────────────
 const Toggle = ({ checked, onChange }) => (
@@ -265,18 +266,21 @@ export default function GreetingMessagesPage() {
         setGreetings((prev) =>
           prev.map((g) => (g.id === editTarget.id ? updatedGreeting : g)),
         );
+        notify.success("Greeting updated successfully.");
       } else {
         const createdGreeting = await greetingService.create({
           ...data,
           enabled: true,
         });
         setGreetings((prev) => [createdGreeting, ...prev]);
+        notify.success("Greeting created successfully.");
       }
 
       closeModal();
     } catch (err) {
-      const errorMsg = err?.response?.data?.error || "Failed to save greeting message.";
+      const errorMsg = getErrorMessage(err, "Failed to save greeting message.");
       setModalError(errorMsg);
+      notify.error(errorMsg);
     } finally {
       setSaving(false);
     }
@@ -295,10 +299,13 @@ export default function GreetingMessagesPage() {
       setGreetings((prev) =>
         prev.map((g) => (g.id === id ? updatedGreeting : g)),
       );
-    } catch (err) {
-      setError(
-        err?.response?.data?.error || "Failed to update greeting status.",
+      notify.info(
+        updatedGreeting.enabled ? "Greeting enabled." : "Greeting disabled.",
       );
+    } catch (err) {
+      const message = getErrorMessage(err, "Failed to update greeting status.");
+      setError(message);
+      notify.error(message);
     }
   };
 
@@ -307,10 +314,11 @@ export default function GreetingMessagesPage() {
       setError("");
       await greetingService.remove(id);
       setGreetings((prev) => prev.filter((g) => g.id !== id));
+      notify.warning("Greeting deleted.");
     } catch (err) {
-      setError(
-        err?.response?.data?.error || "Failed to delete greeting message.",
-      );
+      const message = getErrorMessage(err, "Failed to delete greeting message.");
+      setError(message);
+      notify.error(message);
     }
   };
 

@@ -7,6 +7,7 @@ import MessagesPage from "../component/MessagesPage";
 import GreetingMessagesPage from "../component/Greetingmessagespage";
 import SettingsPage from "../component/Settingspage";
 import messageLogService from "../services/messagelogservice";
+import notify, { getErrorMessage } from "../utils/notify";
 
 import {
   Message as MessageIcon,
@@ -295,6 +296,7 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
   const [lastConnected, setLastConnected] = useState(null);
   const [logoutNotice, setLogoutNotice] = useState("");
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const lastQrErrorRef = useRef("");
 
   const fetchWhatsAppStatus = useCallback(async () => {
     try {
@@ -329,13 +331,20 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
       setLastConnected(response.data.lastConnected || null);
       setLogoutNotice("");
       setQrError("");
+      lastQrErrorRef.current = "";
     } catch (error) {
       setConnected(false);
       setIsConnecting(false);
       setQrImage(null);
-      setQrError(
+      const message = getErrorMessage(
+        error,
         "Unable to fetch live QR code. Please ensure backend is running.",
       );
+      setQrError(message);
+      if (lastQrErrorRef.current !== message) {
+        notify.error(message);
+        lastQrErrorRef.current = message;
+      }
     } finally {
       setQrLoading(false);
     }
@@ -368,16 +377,15 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
       setQrImage(null);
       setWhatsappNumber(null);
       setLastConnected(null);
-      setLogoutNotice(
+      notify.success(
         response?.data?.message ||
           "Logged out from WhatsApp. Waiting for a new QR code...",
       );
       await fetchWhatsAppStatus();
     } catch (err) {
       setLogoutNotice("");
-      setQrError(
-        err?.response?.data?.error ||
-          "Failed to logout WhatsApp. Please try again.",
+      notify.error(
+        getErrorMessage(err, "Failed to logout WhatsApp. Please try again."),
       );
     } finally {
       setLogoutLoading(false);
