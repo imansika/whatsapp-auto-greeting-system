@@ -65,7 +65,7 @@ const GreetingModal = ({ greeting, onSave, onClose, saving, error }) => {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col gap-5 p-7">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col gap-5 p-4 sm:p-7 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-extrabold text-gray-900">
@@ -113,7 +113,7 @@ const GreetingModal = ({ greeting, onSave, onClose, saving, error }) => {
             Trigger Keywords
             <span className="text-gray-400 font-normal ml-1 text-sm">(press Enter or comma to add)</span>
           </label>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <input
               type="text"
               value={kwInput}
@@ -317,18 +317,18 @@ export default function GreetingMessagesPage() {
   return (
     <div className="flex flex-col gap-5">
       {/* Heading row */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">
             Greeting Messages
           </h2>
-          <p className="text-lg text-gray-500 mt-0.5">
+          <p className="text-base md:text-lg text-gray-500 mt-0.5">
             Create and manage your automated greeting messages
           </p>
         </div>
         <button
           onClick={openAdd}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] active:scale-95 text-white font-bold text-base shadow-lg shadow-[#25D366]/25 transition-all flex-shrink-0"
+          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] active:scale-95 text-white font-bold text-base shadow-lg shadow-[#25D366]/25 transition-all flex-shrink-0 w-full sm:w-auto"
         >
           <AddIcon style={{ fontSize: 18 }} />
           Add New

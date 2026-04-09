@@ -61,7 +61,7 @@ const ProfileTab = ({ user }) => {
       <TextInput label="Phone Number" value={phone} onChange={setPhone} type="tel" placeholder="+1 234-567-8900" />
       <TextInput label="Username" value={username} onChange={setUsername} placeholder="Enter your username" />
 
-      <div className="flex items-center gap-4 pt-1">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 pt-1">
         <SaveButton onClick={handleSave} />
         {saved && (
           <span className="text-base text-[#25D366] font-semibold animate-pulse">
@@ -141,7 +141,7 @@ const PasswordTab = () => {
         </div>
       )}
 
-      <div className="flex items-center gap-4 pt-1">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 pt-1">
         <SaveButton onClick={handleSave} label="Update Password" />
         {saved && (
           <span className="text-base text-[#25D366] font-semibold animate-pulse">
@@ -174,19 +174,19 @@ export default function SettingsPage({ user }) {
     <div className="flex flex-col gap-5">
       {/* Heading */}
       <div>
-        <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Settings</h2>
-        <p className="text-lg text-gray-500 mt-0.5">Manage your account settings and preferences</p>
+        <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">Settings</h2>
+        <p className="text-base md:text-lg text-gray-500 mt-0.5">Manage your account settings and preferences</p>
       </div>
 
       {/* Layout */}
-      <div className="flex gap-5 items-start">
+      <div className="flex flex-col lg:flex-row gap-5 items-stretch lg:items-start">
         {/* Sidebar tabs */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 flex flex-col gap-1 w-52 flex-shrink-0">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 flex flex-row lg:flex-col gap-1 w-full lg:w-52 flex-shrink-0 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base font-semibold transition-all w-full text-left
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base font-semibold transition-all w-full lg:w-auto text-left whitespace-nowrap
                 ${activeTab === tab.id
                   ? "bg-[#25D366] text-white shadow-md shadow-[#25D366]/25"
                   : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"}`}
@@ -200,7 +200,7 @@ export default function SettingsPage({ user }) {
         </div>
 
         {/* Content panel */}
-        <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm p-7 min-h-64">
+        <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-7 min-h-64">
           {renderTab()}
         </div>
       </div>
