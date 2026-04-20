@@ -8,6 +8,7 @@ const db = require('../db');
 
 const PASSWORD_RESET_TOKEN_TTL_MINUTES = 15;
 const RESET_GENERIC_MESSAGE = 'If an account exists for that email, a reset token has been sent.';
+const PASSWORD_RESET_TOKEN_BYTE_LENGTH = 12;
 
 const hashResetToken = (token) =>
   crypto.createHash('sha256').update(String(token)).digest('hex');
@@ -158,12 +159,12 @@ router.post('/forgot-password/request', (req, res) => {
     }
 
     if (!rows.length) {
-      return res.json({ message: RESET_GENERIC_MESSAGE });
+      return res.status(404).json({ error: 'No user found with that email' });
     }
 
     const userId = rows[0].id;
     const userEmail = rows[0].email;
-    const rawToken = crypto.randomBytes(32).toString('hex');
+    const rawToken = crypto.randomBytes(PASSWORD_RESET_TOKEN_BYTE_LENGTH).toString('hex');
     const tokenHash = hashResetToken(rawToken);
 
     const cleanupSql = `DELETE FROM password_reset_tokens WHERE user_id = ? OR expires_at < NOW() OR is_used = 1`;
