@@ -130,6 +130,19 @@ const authService = {
     }
   },
 
+  // Change password for authenticated user
+  changePassword: async (currentPassword, newPassword) => {
+    try {
+      const response = await apiClient.post('/change-password', {
+        currentPassword,
+        newPassword,
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
   // Logout user
   logout: () => {
     clearAuthState();
@@ -139,6 +152,20 @@ const authService = {
   getCurrentUser: () => {
     const user = readStorageValue('user');
     return user ? JSON.parse(user) : null;
+  },
+
+  // Update current user details in storage while keeping token unchanged
+  updateCurrentUser: (nextUser) => {
+    const existingUser = authService.getCurrentUser() || {};
+    const mergedUser = {
+      ...existingUser,
+      ...nextUser,
+    };
+
+    sessionStorage.setItem('user', JSON.stringify(mergedUser));
+    localStorage.removeItem('user');
+
+    return mergedUser;
   },
 
   // Check if user is authenticated

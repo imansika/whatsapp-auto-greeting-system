@@ -138,27 +138,34 @@ const Sidebar = ({ active, setActive, user, onLogout, open, onClose }) => (
 
 // ── Top bar ────────────────────────────────────────────────────────────────
 const TopBar = ({
-  connected,
-  isConnecting,
+  connectionPhase,
   onOpenSidebar,
   onToggleNotifications,
   unreadNotifications,
 }) => {
-  const label = connected
+  const label = connectionPhase === "connected"
     ? "Connected"
-    : isConnecting
-      ? "Connecting…"
-      : "Disconnected";
-  const dotClass = connected
+    : connectionPhase === "scan-qr"
+      ? "Scan QR Code"
+      : connectionPhase === "connecting"
+        ? "Connecting…"
+        : connectionPhase === "generating-qr"
+          ? "Generating QR…"
+          : "Disconnected";
+  const dotClass = connectionPhase === "connected"
     ? "bg-[#25D366] animate-pulse"
-    : isConnecting
-      ? "bg-yellow-400 animate-pulse"
-      : "bg-gray-400";
-  const textClass = connected
+    : connectionPhase === "scan-qr"
+      ? "bg-blue-400 animate-pulse"
+      : connectionPhase === "connecting" || connectionPhase === "generating-qr"
+        ? "bg-yellow-400 animate-pulse"
+        : "bg-gray-400";
+  const textClass = connectionPhase === "connected"
     ? "text-[#25D366]"
-    : isConnecting
-      ? "text-yellow-500"
-      : "text-gray-400";
+    : connectionPhase === "scan-qr"
+      ? "text-blue-600"
+      : connectionPhase === "connecting" || connectionPhase === "generating-qr"
+        ? "text-yellow-500"
+        : "text-gray-400";
 
   return (
     <header className="h-14 sm:h-16 bg-white border-b border-gray-100 flex items-center justify-between px-3 sm:px-6 flex-shrink-0 shadow-sm gap-2">
@@ -286,7 +293,14 @@ const getAuthHeaders = () => {
 };
 
 // ── QR Page ────────────────────────────────────────────────────────────────
-const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
+const QRPage = ({
+  connected,
+  setConnected,
+  isConnecting,
+  setIsConnecting,
+  connectionPhase,
+  setConnectionPhase,
+}) => {
   const [qrImage, setQrImage] = useState(null);
   const [qrLoading, setQrLoading] = useState(true);
   const [refreshingQr, setRefreshingQr] = useState(false);
@@ -297,6 +311,7 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
   const [logoutNotice, setLogoutNotice] = useState("");
   const [logoutLoading, setLogoutLoading] = useState(false);
   const lastQrErrorRef = useRef("");
+  const hasQrEverShownRef = useRef(false);
 
   const fetchWhatsAppStatus = useCallback(async () => {
     try {
@@ -321,10 +336,22 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
       setConnected(isConnectedNow);
       setIsConnecting(Boolean(response.data.isConnecting));
       if (isConnectedNow) {
+        hasQrEverShownRef.current = false;
+        setConnectionPhase("connected");
         setQrImage(null);
       } else if (hasQrNow && nextQrImage) {
+        hasQrEverShownRef.current = true;
+        setConnectionPhase("scan-qr");
         setQrImage(nextQrImage);
+      } else if (Boolean(response.data.isConnecting) && hasQrEverShownRef.current) {
+        setConnectionPhase("connecting");
+        setQrImage(null);
+      } else if (Boolean(response.data.isConnecting)) {
+        setConnectionPhase("generating-qr");
+        setQrImage(null);
       } else {
+        hasQrEverShownRef.current = false;
+        setConnectionPhase("disconnected");
         setQrImage(null);
       }
       setWhatsappNumber(response.data.whatsappNumber || null);
@@ -333,8 +360,10 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
       setQrError("");
       lastQrErrorRef.current = "";
     } catch (error) {
+      hasQrEverShownRef.current = false;
       setConnected(false);
       setIsConnecting(false);
+      setConnectionPhase("disconnected");
       setQrImage(null);
       const message = getErrorMessage(
         error,
@@ -372,8 +401,10 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
         {},
         { headers: getAuthHeaders() },
       );
+      hasQrEverShownRef.current = false;
       setConnected(false);
       setIsConnecting(true);
+      setConnectionPhase("generating-qr");
       setQrImage(null);
       setWhatsappNumber(null);
       setLastConnected(null);
@@ -453,18 +484,22 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
         className={`flex items-start sm:items-center gap-3 px-4 sm:px-5 py-4 rounded-xl border ${
           connected
             ? "bg-[#f0fdf4] border-[#bbf7d0]"
-            : isConnecting
+            : connectionPhase === "generating-qr" || connectionPhase === "connecting"
               ? "bg-yellow-50 border-yellow-200"
+              : connectionPhase === "scan-qr"
+                ? "bg-blue-50 border-blue-200"
               : "bg-gray-50 border-gray-200"
         }`}
       >
         {connected ? (
           <CheckCircleIcon style={{ color: "#25D366", fontSize: 24 }} />
-        ) : isConnecting ? (
+        ) : connectionPhase === "generating-qr" || connectionPhase === "connecting" ? (
           <RefreshIcon
             style={{ color: "#ca8a04", fontSize: 24 }}
             className="animate-spin"
           />
+        ) : connectionPhase === "scan-qr" ? (
+          <QrCodeIcon style={{ color: "#2563eb", fontSize: 24 }} />
         ) : (
           <CancelIcon style={{ color: "#9ca3af", fontSize: 24 }} />
         )}
@@ -473,15 +508,21 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
             className={`text-sm font-semibold ${
               connected
                 ? "text-[#16a34a]"
-                : isConnecting
+                : connectionPhase === "generating-qr" || connectionPhase === "connecting"
                   ? "text-yellow-700"
+                  : connectionPhase === "scan-qr"
+                    ? "text-blue-700"
                   : "text-gray-700"
             }`}
           >
             {connected
               ? "Connected"
-              : isConnecting
-                ? "Connecting to WhatsApp…"
+              : connectionPhase === "generating-qr"
+                ? "Generating QR Code…"
+                : connectionPhase === "scan-qr"
+                  ? "QR Code Ready"
+                  : connectionPhase === "connecting"
+                    ? "Connecting to WhatsApp…"
                 : "Not Connected"}
           </p>
           <p className="text-xs text-gray-500">
@@ -489,8 +530,12 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
               ? `Linked to +${whatsappNumber}${lastConnected ? ` · Last synced ${new Date(lastConnected).toLocaleString()}` : ""}`
               : connected
                 ? "Your WhatsApp account is linked and active."
-                : isConnecting
-                  ? "Restoring your session, please wait a moment…"
+                : connectionPhase === "generating-qr"
+                  ? "Please wait while we generate a fresh QR code…"
+                  : connectionPhase === "scan-qr"
+                    ? "Scan the QR code below using Linked Devices in WhatsApp."
+                    : connectionPhase === "connecting"
+                      ? "QR scanned. Finalizing connection, please wait…"
                   : "Please scan the QR code below to connect your WhatsApp account."}
           </p>
         </div>
@@ -557,8 +602,10 @@ const QRPage = ({ connected, setConnected, isConnecting, setIsConnecting }) => {
 
             {!connected && !qrImage && !qrError && (
               <p className="text-xs text-gray-500">
-                {isConnecting
-                  ? "Waiting for a new WhatsApp QR code..."
+                {connectionPhase === "generating-qr"
+                  ? "Generating a new WhatsApp QR code..."
+                  : connectionPhase === "connecting"
+                    ? "QR scanned. Connecting to WhatsApp..."
                   : "WhatsApp is not connected yet. A new QR code will appear here automatically."}
               </p>
             )}
@@ -634,16 +681,17 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [connected, setConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionPhase, setConnectionPhase] = useState("disconnected");
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const hasNotificationBootstrap = useRef(false);
   const lastSeenIncomingIdRef = useRef(0);
+  const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
 
-  const rawUser = authService.getCurrentUser();
-  const displayName = rawUser?.username || "User";
-  const displayEmail = rawUser?.email || "No email";
-  const displayPhone = rawUser?.phone || "";
+  const displayName = currentUser?.username || "User";
+  const displayEmail = currentUser?.email || "No email";
+  const displayPhone = currentUser?.phone || "";
   const initials =
     displayName
       .split(" ")
@@ -749,6 +797,8 @@ export default function App() {
             setConnected={setConnected}
             isConnecting={isConnecting}
             setIsConnecting={setIsConnecting}
+            connectionPhase={connectionPhase}
+            setConnectionPhase={setConnectionPhase}
           />
         );
       case "messages":
@@ -766,6 +816,7 @@ export default function App() {
               phone: displayPhone,
               username: displayName,
             }}
+            onUserUpdated={setCurrentUser}
           />
         );
 
@@ -796,8 +847,7 @@ export default function App() {
 
         <div className="flex-1 flex flex-col min-w-0">
           <TopBar
-            connected={connected}
-            isConnecting={isConnecting}
+            connectionPhase={connectionPhase}
             onOpenSidebar={() => setIsSidebarOpen(true)}
             onToggleNotifications={toggleNotifications}
             unreadNotifications={unreadNotifications}

@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
+const authenticateToken = require('../middleware/auth');
 
 const PASSWORD_RESET_TOKEN_TTL_MINUTES = 15;
 const RESET_GENERIC_MESSAGE = 'If an account exists for that email, a reset token has been sent.';
@@ -33,17 +34,51 @@ const getSmtpTransporter = () => {
 
 const sendPasswordResetTokenEmail = async (toEmail, token) => {
   const transporter = getSmtpTransporter();
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const fromName = process.env.SMTP_FROM_NAME || 'WhatsApp Greeting System (Do Not Reply)';
+  const fromAddress = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+  const replyTo = String(process.env.SMTP_REPLY_TO || '').trim();
+  const from = {
+    name: fromName,
+    address: fromAddress,
+  };
 
-  if (!transporter || !from) {
+  if (!transporter || !fromAddress) {
     throw new Error('SMTP is not configured');
   }
+
+  const textBody = [
+    'WhatsApp Greeting System',
+    'This is an automated message. Please do not reply.',
+    '',
+    `Your password reset token is: ${token}`,
+    '',
+    `This token expires in ${PASSWORD_RESET_TOKEN_TTL_MINUTES} minutes.`,
+    'If you did not request a password reset, please ignore this email.',
+  ].join('\n');
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+      <h2 style="margin: 0 0 12px; color: #111827;">WhatsApp Greeting System</h2>
+      <p style="margin: 0 0 10px; color: #6b7280;"><em>This is an automated email. Please do not reply.</em></p>
+      <p style="margin: 0 0 10px;">We received a request to reset your password.</p>
+      <p style="margin: 0 0 6px;"><strong>Your reset token:</strong></p>
+      <p style="margin: 0 0 14px; font-size: 18px; letter-spacing: 1px;"><strong>${token}</strong></p>
+      <p style="margin: 0 0 10px;">This token expires in ${PASSWORD_RESET_TOKEN_TTL_MINUTES} minutes.</p>
+      <p style="margin: 0;">If you did not request this, you can safely ignore this email.</p>
+    </div>
+  `;
 
   await transporter.sendMail({
     from,
     to: toEmail,
-    subject: 'Your password reset token',
-    text: `Use this reset token to change your password: ${token}\n\nThis token expires in ${PASSWORD_RESET_TOKEN_TTL_MINUTES} minutes. If you did not request this, ignore this email.`,
+    subject: 'Password Reset - WhatsApp Greeting System',
+    ...(replyTo ? { replyTo: { address: replyTo } } : {}),
+    headers: {
+      'Auto-Submitted': 'auto-generated',
+      'X-Auto-Response-Suppress': 'All',
+    },
+    text: textBody,
+    html: htmlBody,
   });
 };
 
@@ -255,6 +290,68 @@ router.post('/forgot-password/reset', async (req, res) => {
         });
       });
     });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * CHANGE PASSWORD (AUTHENTICATED)
+ */
+router.post('/change-password', authenticateToken, async (req, res) => {
+  const userId = Number(req.user?.id);
+  const { currentPassword, newPassword } = req.body;
+
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Current password and new password are required' });
+  }
+
+  if (String(newPassword).length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  }
+
+  try {
+    db.query(
+      'SELECT id, password FROM users WHERE id = ? LIMIT 1',
+      [userId],
+      async (findErr, rows) => {
+        if (findErr) {
+          return res.status(500).json({ error: findErr.message });
+        }
+
+        if (!rows.length) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        const user = rows[0];
+        const isCurrentMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isCurrentMatch) {
+          return res.status(401).json({ error: 'Current password is incorrect' });
+        }
+
+        const isSameAsCurrent = await bcrypt.compare(newPassword, user.password);
+        if (isSameAsCurrent) {
+          return res.status(400).json({ error: 'New password must be different from current password' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        db.query(
+          'UPDATE users SET password = ? WHERE id = ?',
+          [hashedPassword, userId],
+          (updateErr) => {
+            if (updateErr) {
+              return res.status(500).json({ error: updateErr.message });
+            }
+
+            return res.json({ message: 'Password updated successfully' });
+          },
+        );
+      },
+    );
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

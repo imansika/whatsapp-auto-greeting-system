@@ -6,10 +6,20 @@ import {
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
 } from "@mui/icons-material";
-import notify from "../utils/notify";
+import notify, { getErrorMessage } from "../utils/notify";
+import authService from "../services/authservice";
 
 // ── Text Input ─────────────────────────────────────────────────────────────
-const TextInput = ({ label, value, onChange, type = "text", placeholder = "", hint = "", rightElement = null }) => (
+const TextInput = ({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder = "",
+  hint = "",
+  rightElement = null,
+  readOnly = false,
+}) => (
   <div className="flex flex-col gap-1.5">
     {label && <label className="text-base font-semibold text-gray-700">{label}</label>}
     <div className="relative flex items-center">
@@ -17,8 +27,13 @@ const TextInput = ({ label, value, onChange, type = "text", placeholder = "", hi
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        readOnly={readOnly}
         placeholder={placeholder}
-        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent transition-all pr-10"
+        className={`w-full px-4 py-3 rounded-xl border border-gray-200 text-base text-gray-800 placeholder-gray-400 transition-all pr-10 ${
+          readOnly
+            ? "bg-gray-100 cursor-not-allowed"
+            : "bg-white focus:outline-none focus:ring-2 focus:ring-[#25D366] focus:border-transparent"
+        }`}
       />
       {rightElement && (
         <div className="absolute right-3">{rightElement}</div>
@@ -41,13 +56,31 @@ const SaveButton = ({ onClick, label = "Save Changes" }) => (
 );
 
 // ── Profile Tab ────────────────────────────────────────────────────────────
-const ProfileTab = ({ user }) => {
-  const [fullName, setFullName] = useState(user?.name || "John Doe");
-  const [email, setEmail] = useState(user?.email || "john@example.com");
+const ProfileTab = ({ user, onUserUpdated }) => {
+  const [email, setEmail] = useState(user?.email || "");
   const [phone, setPhone] = useState(user?.phone || "");
-  const [username, setUsername] = useState(user?.username || "johndoe");
+  const [username, setUsername] = useState(user?.username || "");
 
   const handleSave = () => {
+    const cleanUsername = String(username || "").trim();
+    if (!cleanUsername) {
+      notify.warning("Username is required.");
+      return;
+    }
+
+    const updatedUser = authService.updateCurrentUser({
+      username: cleanUsername,
+      email: String(email || "").trim(),
+      phone: String(phone || "").trim(),
+    });
+
+    if (onUserUpdated) {
+      onUserUpdated(updatedUser);
+    }
+
+    setUsername(updatedUser.username || "");
+    setEmail(updatedUser.email || "");
+    setPhone(updatedUser.phone || "");
     notify.success("Profile changes saved.");
   };
 
@@ -55,10 +88,17 @@ const ProfileTab = ({ user }) => {
     <div className="flex flex-col gap-5">
       <h3 className="text-xl font-extrabold text-gray-900">Profile Information</h3>
 
-      <TextInput label="Full Name" value={fullName} onChange={setFullName} placeholder="Enter your full name" />
-      <TextInput label="Email Address" value={email} onChange={setEmail} type="email" placeholder="Enter your email" />
-      <TextInput label="Phone Number" value={phone} onChange={setPhone} type="tel" placeholder="+1 234-567-8900" />
       <TextInput label="Username" value={username} onChange={setUsername} placeholder="Enter your username" />
+      <TextInput
+        label="Email Address"
+        value={email}
+        onChange={setEmail}
+        type="email"
+        placeholder="Email updates are managed by admin support"
+        hint="Email is currently read-only in settings."
+        readOnly
+      />
+      <TextInput label="Phone Number" value={phone} onChange={setPhone} type="tel" placeholder="+1 234-567-8900" />
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 pt-1">
         <SaveButton onClick={handleSave} />
@@ -75,6 +115,7 @@ const PasswordTab = () => {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const eyeBtn = (show, toggle) => (
     <button type="button" onClick={toggle} className="text-gray-400 hover:text-[#25D366] transition-colors">
@@ -84,12 +125,23 @@ const PasswordTab = () => {
     </button>
   );
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!current) { notify.warning("Please enter your current password."); return; }
     if (newPwd.length < 6) { notify.warning("New password must be at least 6 characters."); return; }
     if (newPwd !== confirm) { notify.warning("New passwords do not match."); return; }
-    notify.success("Password updated successfully.");
-    setCurrent(""); setNewPwd(""); setConfirm("");
+
+    try {
+      setSaving(true);
+      const response = await authService.changePassword(current, newPwd);
+      notify.success(response?.message || "Password updated successfully.");
+      setCurrent("");
+      setNewPwd("");
+      setConfirm("");
+    } catch (error) {
+      notify.error(getErrorMessage(error, "Failed to update password."));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -126,7 +178,7 @@ const PasswordTab = () => {
       />
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 pt-1">
-        <SaveButton onClick={handleSave} label="Update Password" />
+        <SaveButton onClick={handleSave} label={saving ? "Updating Password..." : "Update Password"} />
       </div>
     </div>
   );
@@ -138,12 +190,12 @@ const tabs = [
   { id: "password", label: "Password", icon: <LockIcon fontSize="small" /> },
 ];
 
-export default function SettingsPage({ user }) {
+export default function SettingsPage({ user, onUserUpdated }) {
   const [activeTab, setActiveTab] = useState("profile");
 
   const renderTab = () => {
     switch (activeTab) {
-      case "profile":  return <ProfileTab user={user} />;
+      case "profile":  return <ProfileTab user={user} onUserUpdated={onUserUpdated} />;
       case "password": return <PasswordTab />;
       default:         return null;
     }
