@@ -383,6 +383,12 @@ const LoginPage = ({ onSwitch }) => {
             onClick={handleResetWithToken}
             disabled={!tokenRequested || forgotLoading}
             variant="contained"
+            sx={{
+              fontSize: "0.8rem",
+              fontWeight: 600,
+              px: 2,
+              py: 0.75,
+            }}
           >
             {forgotLoading ? "Resetting..." : "Reset Password"}
           </Button>
