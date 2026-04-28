@@ -176,6 +176,8 @@ const MessageCard = ({ msg }) => (
 );
 
 // ── Messages Page ──────────────────────────────────────────────────────────
+const MESSAGES_PER_PAGE = 4;
+
 export default function MessagesPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All Messages");
@@ -183,6 +185,7 @@ export default function MessagesPage() {
   const [messageCards, setMessageCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     let mounted = true;
@@ -227,6 +230,19 @@ export default function MessagesPage() {
     if (filter === "Auto-Replied") return matchesSearch && msg.status === "auto-replied";
     return matchesSearch;
   }), [messageCards, search, filter]);
+
+  // Reset to first page when filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filter]);
+
+  // Calculate paginated results
+  const totalPages = Math.ceil(filtered.length / MESSAGES_PER_PAGE);
+  const paginatedMessages = useMemo(() => {
+    const startIdx = (currentPage - 1) * MESSAGES_PER_PAGE;
+    const endIdx = startIdx + MESSAGES_PER_PAGE;
+    return filtered.slice(startIdx, endIdx);
+  }, [filtered, currentPage]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -298,10 +314,16 @@ export default function MessagesPage() {
       </div>
 
       {/* Count */}
-      <p className="text-base text-gray-500">
-        Showing <span className="font-semibold text-gray-700">{filtered.length}</span> of{" "}
-        <span className="font-semibold text-gray-700">{messageCards.length}</span> messages
-      </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <p className="text-base text-gray-500">
+          Showing <span className="font-semibold text-gray-700">{Math.min((currentPage - 1) * MESSAGES_PER_PAGE + 1, filtered.length)}</span>–{" "}
+          <span className="font-semibold text-gray-700">{Math.min(currentPage * MESSAGES_PER_PAGE, filtered.length)}</span> of{" "}
+          <span className="font-semibold text-gray-700">{filtered.length}</span> messages
+          {totalPages > 1 && (
+            <span className="text-gray-400 ml-2">(Page {currentPage} of {totalPages})</span>
+          )}
+        </p>
+      </div>
 
       {/* Message list */}
       <div className="flex flex-col gap-4">
@@ -309,8 +331,8 @@ export default function MessagesPage() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-12 text-center text-base text-gray-500">
             Loading messages...
           </div>
-        ) : filtered.length > 0 ? (
-          filtered.map((msg) => <MessageCard key={msg.id} msg={msg} />)
+        ) : paginatedMessages.length > 0 ? (
+          paginatedMessages.map((msg) => <MessageCard key={msg.id} msg={msg} />)
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
@@ -321,6 +343,45 @@ export default function MessagesPage() {
           </div>
         )}
       </div>
+
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 mt-6">
+          <button
+            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+            className="p-2 bg-white border border-gray-200 rounded-lg text-lg font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            title="Previous page"
+          >
+            ←
+          </button>
+
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+              <button
+                key={pageNum}
+                onClick={() => setCurrentPage(pageNum)}
+                className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
+                  currentPage === pageNum
+                    ? "bg-[#25D366] text-white"
+                    : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {pageNum}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+            className="p-2 bg-white border border-gray-200 rounded-lg text-lg font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            title="Next page"
+          >
+            →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

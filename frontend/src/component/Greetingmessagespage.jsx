@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Chat as ChatIcon,
   Edit as EditIcon,
@@ -220,6 +220,8 @@ const GreetingCard = ({ greeting, onToggle, onEdit, onDelete }) => (
 );
 
 // ── Greeting Messages Page ─────────────────────────────────────────────────
+const GREETINGS_PER_PAGE = 4;
+
 export default function GreetingMessagesPage() {
   const [greetings, setGreetings] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
@@ -228,6 +230,7 @@ export default function GreetingMessagesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     const loadGreetings = async () => {
@@ -322,6 +325,19 @@ export default function GreetingMessagesPage() {
     }
   };
 
+  // Calculate paginated results
+  const totalPages = Math.ceil(greetings.length / GREETINGS_PER_PAGE);
+  const paginatedGreetings = useMemo(() => {
+    const startIdx = (currentPage - 1) * GREETINGS_PER_PAGE;
+    const endIdx = startIdx + GREETINGS_PER_PAGE;
+    return greetings.slice(startIdx, endIdx);
+  }, [greetings, currentPage]);
+
+  // Reset to first page when greetings change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [greetings]);
+
   return (
     <div className="flex flex-col gap-5">
       {/* Heading row */}
@@ -349,14 +365,26 @@ export default function GreetingMessagesPage() {
         </div>
       )}
 
+      {/* Count */}
+      {greetings.length > 0 && (
+        <p className="text-base text-gray-500">
+          Showing <span className="font-semibold text-gray-700">{Math.min((currentPage - 1) * GREETINGS_PER_PAGE + 1, greetings.length)}</span>–{" "}
+          <span className="font-semibold text-gray-700">{Math.min(currentPage * GREETINGS_PER_PAGE, greetings.length)}</span> of{" "}
+          <span className="font-semibold text-gray-700">{greetings.length}</span> greetings
+          {totalPages > 1 && (
+            <span className="text-gray-400 ml-2">(Page {currentPage} of {totalPages})</span>
+          )}
+        </p>
+      )}
+
       {/* Cards */}
       <div className="flex flex-col gap-4">
         {loading ? (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-12 text-center text-base text-gray-500">
             Loading greeting messages...
           </div>
-        ) : greetings.length > 0 ? (
-          greetings.map((g) => (
+        ) : paginatedGreetings.length > 0 ? (
+          paginatedGreetings.map((g) => (
             <GreetingCard
               key={g.id}
               greeting={g}
@@ -384,6 +412,45 @@ export default function GreetingMessagesPage() {
           </div>
         )}
       </div>
+
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 mt-6">
+          <button
+            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+            className="p-2 bg-white border border-gray-200 rounded-lg text-lg font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            title="Previous page"
+          >
+            ←
+          </button>
+
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+              <button
+                key={pageNum}
+                onClick={() => setCurrentPage(pageNum)}
+                className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
+                  currentPage === pageNum
+                    ? "bg-[#25D366] text-white"
+                    : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {pageNum}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+            className="p-2 bg-white border border-gray-200 rounded-lg text-lg font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            title="Next page"
+          >
+            →
+          </button>
+        </div>
+      )}
 
       {/* Modal */}
       {modalOpen && (
